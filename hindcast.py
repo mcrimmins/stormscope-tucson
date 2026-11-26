@@ -154,17 +154,25 @@ def fetch_obs_refc(mrms, model_mrms, radar_vars, t, ys, xs, device):
     return obs
 
 
-def output_slices(m):
-    """Slices of the model grid covering REGION (regional or full-domain runs)."""
-    info = getattr(m, "region_info", None)
-    if info is not None:
-        return info.output_slices
-    lat, lon = to_np(m.latitudes), to_np(m.longitudes)
+FULL_DOMAIN = False  # set in main(); full-domain runs score only the REGION box
+
+
+def region_bbox(lat, lon):
+    """Grid-index slices of the bounding box covering REGION."""
     lon = np.where(lon > 180, lon - 360, lon)
     s_, n_, w_, e_ = REGION
     inside = (lat >= s_) & (lat <= n_) & (lon >= w_) & (lon <= e_)
     yy, xx = np.where(inside)
     return slice(yy.min(), yy.max() + 1), slice(xx.min(), xx.max() + 1)
+
+
+def output_slices(m):
+    """Slices of the model grid covering REGION (regional or full-domain runs)."""
+    info = getattr(m, "region_info", None)
+    if info is not None and not FULL_DOMAIN:
+        return info.output_slices
+    lat, lon = to_np(m.latitudes), to_np(m.longitudes)
+    return region_bbox(lat, lon)
 
 
 def fss(f_frac, o_frac, mask):
@@ -261,8 +269,17 @@ def run_case(case, model, model_mrms, members, hours, device, out_root=OUT_ROOT,
     ds.to_zarr(out / "forecast.zarr", mode="w")
 
     # ---- scores ----------------------------------------------------------
-    rows = []
     fr = f_refc.astype(np.float32)
+    scores = compute_scores(name, fr, obs, obs0, valid, leads)
+    scores.to_csv(out / "scores.csv", index=False)
+
+    plot_case(name, t0, lat, lon, valid, fr, obs, leads, out)
+    plot_fss(scores, name, out)
+    return scores
+
+
+def compute_scores(name, fr, obs, obs0, valid, leads):
+    rows = []
     for s, L in enumerate(leads):
         o = obs[s]
         mask = valid & np.isfinite(o) & np.isfinite(obs0)
@@ -285,12 +302,7 @@ def run_case(case, model, model_mrms, members, hours, device, out_root=OUT_ROOT,
                     freq_bias=(float(ens_exceed[mask].mean())
                                / max(float((o_f >= T)[mask].mean()), 1e-9)),
                 ))
-    scores = pd.DataFrame(rows)
-    scores.to_csv(out / "scores.csv", index=False)
-
-    plot_case(name, t0, lat, lon, valid, fr, obs, leads, out)
-    plot_fss(scores, name, out)
-    return scores
+    return pd.DataFrame(rows)
 
 
 # --------------------------------------------------------------------------
@@ -382,6 +394,8 @@ def main():
                     help="experiment label; outputs go to outputs/hindcast_<tag>/")
     args = ap.parse_args()
     out_root = Path(f"outputs/hindcast_{args.tag}") if args.tag else OUT_ROOT
+    global FULL_DOMAIN
+    FULL_DOMAIN = args.full_domain
 
     cases = yaml.safe_load(open(args.cases))["cases"]
     if args.only:
