@@ -73,7 +73,7 @@ def goes_satellite_for(t: np.datetime64) -> str:
     return "goes19" if t >= GOES19_START else "goes16"
 
 
-def load_models(device, model_name=MODEL_NAME, full_domain=False):
+def load_models(device, model_name=MODEL_NAME, full_domain=False, padding=PADDING):
     package = StormScopeBase.load_default_package()
     model = StormScopeGOES.load_model(
         package=package, conditioning_data_source=None,
@@ -86,8 +86,8 @@ def load_models(device, model_name=MODEL_NAME, full_domain=False):
     ).to(device).eval()
     if full_domain:
         return model, model_mrms
-    model = model.set_domain(*REGION, padding=PADDING)
-    model_mrms = model_mrms.set_domain(*REGION, padding=PADDING)
+    model = model.set_domain(*REGION, padding=padding)
+    model_mrms = model_mrms.set_domain(*REGION, padding=padding)
     return model, model_mrms
 
 
@@ -183,12 +183,13 @@ def neighborhood_prob(members_field, thresh, size):
 # --------------------------------------------------------------------------
 # Main per-case routine
 # --------------------------------------------------------------------------
-def run_case(case, model, model_mrms, members, hours, device, out_root=OUT_ROOT):
+def run_case(case, model, model_mrms, members, hours, device, out_root=OUT_ROOT,
+             step_min=STEP_MIN):
     name = case["name"]
     t0 = np.datetime64(datetime.fromisoformat(case["init"]))
     out = out_root / name
     out.mkdir(parents=True, exist_ok=True)
-    n_steps = int(hours * 60 / STEP_MIN)
+    n_steps = int(hours * 60 / step_min)
     print(f"\n=== {name}: init {t0} UTC, {members} members, {n_steps} steps ===")
 
     (y, yc), (ym, ymc), mrms, radar_vars = build_initial_state(
@@ -373,6 +374,10 @@ def main():
                     help="StormScope variant name (default: %(default)s)")
     ap.add_argument("--full-domain", action="store_true",
                     help="run on the full CONUS grid, score only the Tucson box")
+    ap.add_argument("--padding", type=int, default=PADDING,
+                    help="regional context margin in grid points (3 km each)")
+    ap.add_argument("--step-min", type=int, default=STEP_MIN,
+                    help="model time step in minutes (60 for 6km_1hr)")
     ap.add_argument("--tag", default="",
                     help="experiment label; outputs go to outputs/hindcast_<tag>/")
     args = ap.parse_args()
@@ -383,13 +388,14 @@ def main():
         cases = [c for c in cases if c["name"] == args.only]
 
     device = torch.device("cuda")
-    model, model_mrms = load_models(device, args.model, args.full_domain)
+    model, model_mrms = load_models(device, args.model, args.full_domain, args.padding)
 
     all_scores = []
     for case in cases:
         try:
             all_scores.append(
-                run_case(case, model, model_mrms, args.members, args.hours, device, out_root)
+                run_case(case, model, model_mrms, args.members, args.hours, device,
+                         out_root, args.step_min)
             )
         except Exception as e:
             print(f"!!! case {case['name']} failed: {e}")
