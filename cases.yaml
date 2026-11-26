@@ -2,14 +2,56 @@
 # init: forecast initialization time in UTC (MST = UTC - 7).
 # Use 2024 or later dates: StormScope was trained on 2018-2023.
 # GOES source is picked automatically (GOES-16 before 2025-04-07, GOES-19 after).
+# 2026 cases chosen from UA Atmospheric Sciences monsoon discussions,
+# Arizona Daily Star monsoon coverage, and KOLD reports.
 
 cases:
   - name: 2024-07-25_21z
     init: "2024-07-25T21:00"
-    note: "Smoke-test case; border MCS SW of Tucson + Rim storms in forecast"
+    note: "Smoke-test case; border MCS SW of Tucson + Rim storms"
 
-  # Add your case days below (mix of big metro storms, Sky Island-only,
-  # Sonora drift-up, and 'bust' days). Example format:
-  # - name: 2024-08-XX_19z
-  #   init: "2024-08-XXT19:00"
-  #   note: "what happened"
+  # --- 2026 monsoon ---------------------------------------------------------
+  - name: 2026-07-11_20z
+    init: "2026-07-11T20:00"
+    note: "Severe potential in Tucson; classic sounding, westward storm motion ~15 kt"
+
+  - name: 2026-07-20_21z
+    init: "2026-07-20T21:00"
+    note: "Heavy rain/flash flood risk in eastern AZ; slow storms possibly reaching Tucson in evening"
+
+  - name: 2026-07-25_21z
+    init: "2026-07-25T21:00"
+    note: "Storms in Tucson + Phoenix, outflow/dust; storms skirted Catalina foothills and Rincons"
+
+  - name: 2026-07-26_19z
+    init: "2026-07-26T19:00"
+    note: "CIN-limited; storms confined to mountains E/S of Tucson (Sky Island case)"
+
+  - name: 2026-07-27_20z
+    init: "2026-07-27T20:00"
+    note: "Storms restricted to Mogollon Rim and international border"
+
+  - name: 2026-08-04_21z
+    init: "2026-08-04T21:00"
+    note: "Severe storms with strong winds and heavy rain in Tucson afternoon/evening"
+
+  - name: 2026-08-05_21z
+    init: "2026-08-05T21:00"
+    note: "Widespread storm over Tucson with hundreds of lightning strikes"
+
+  - name: 2026-08-12_20z
+    init: "2026-08-12T20:00"
+    note: "Flash flood watch period across southeast AZ"
+
+  - name: 2026-08-28_00z
+    init: "2026-08-28T00:00"
+    note: "Late-season evening storm (Thu Aug 27, 5 pm MST init); downed trees in central Tucson"
+
+  - name: 2026-09-16_18z
+    init: "2026-09-16T18:00"
+    note: "Heavy rain/flash flooding (NWS Phoenix event); NW part of domain"
+
+  # --- Cool-season / synoptic contrast -----------------------------------------
+  - name: 2026-10-31_13z
+    init: "2026-10-31T13:00"
+    note: "Halloween cutoff low + atmospheric river; morning showers moving into SE AZ (6 am MST init); record Tucson daily rain"

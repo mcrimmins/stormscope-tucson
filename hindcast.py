@@ -265,6 +265,9 @@ def run_case(case, model, model_mrms, members, hours, device):
                     fss_stormscope=fss(ff, of, mask),
                     fss_persistence=fss(pf, of, mask),
                     obs_frac=float((o_f >= T)[mask].mean()),
+                    fcst_frac=float(ens_exceed[mask].mean()),
+                    freq_bias=(float(ens_exceed[mask].mean())
+                               / max(float((o_f >= T)[mask].mean()), 1e-9)),
                 ))
     scores = pd.DataFrame(rows)
     scores.to_csv(out / "scores.csv", index=False)
@@ -317,9 +320,10 @@ def plot_case(name, t0, lat, lon, valid, fr, obs, leads, out):
             im = ax.pcolormesh(lon, lat, field, transform=pc, shading="auto", **kw)
             ax.set_title(title)
             plt.colorbar(im, ax=ax, orientation="horizontal", pad=0.04, shrink=0.8)
+        fmt = lambda t: str(t)[:16].replace("T", " ")
         fig.suptitle(
-            f"{name}  |  init {t0} UTC  |  lead +{L//60}h{L%60:02d}  "
-            f"|  valid {valid_t} UTC"
+            f"{name}  |  init {fmt(t0)} UTC  |  lead +{L//60}h{L%60:02d}  "
+            f"|  valid {fmt(valid_t)} UTC"
         )
         fig.savefig(out / f"compare_lead{L:03d}.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -375,7 +379,7 @@ def main():
         allsc.to_csv(OUT_ROOT / "scores_all.csv", index=False)
         summary = (
             allsc.groupby(["thresh_dbz", "nbhd_km", "lead_min"])
-            [["fss_stormscope", "fss_persistence"]].mean().reset_index()
+            [["fss_stormscope", "fss_persistence", "freq_bias"]].mean().reset_index()
         )
         summary.to_csv(OUT_ROOT / "scores_summary.csv", index=False)
         print("\nMean FSS (>=35 dBZ, 33 km) by lead:")

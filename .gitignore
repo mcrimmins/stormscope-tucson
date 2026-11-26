@@ -5,6 +5,9 @@ __pycache__/
 
 # Large or machine-specific outputs (stay on the ThinkStation)
 outputs/
+
+# Results pulled to the laptop with pull_results.ps1
+results/
 *.zarr/
 *.log
 

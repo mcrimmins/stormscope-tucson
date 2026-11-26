@@ -59,6 +59,7 @@ uv run python -c "import torch, natten, earth2grid, earth2studio; print(torch.__
 | `hindcast.py` | Ensemble hindcasts for cases in `cases.yaml`; saves Zarr, FSS vs. persistence, comparison maps |
 | `cases.yaml` | Hindcast case list (init times in UTC) |
 | `cuda-env.sh` | Environment variables for building CUDA extensions |
+| `pull_results.ps1` | (Laptop) copy hindcast PNGs/CSVs from the ThinkStation into `results/` |
 
 ```bash
 uv run python hindcast.py                                   # all cases, 16 members, 6 h
@@ -67,6 +68,37 @@ uv run python hindcast.py --only 2024-07-25_21z --members 4 --hours 2   # quick 
 
 Outputs go to `outputs/hindcast/<case>/` (git-ignored): `forecast.zarr`, `scores.csv`,
 `compare_leadNNN.png`, `fss_vs_lead.png`; plus `outputs/hindcast/scores_summary.csv`.
+
+## Workflow: laptop ↔ GitHub ↔ ThinkStation
+
+Code is edited on the laptop (`PyProjects\stormscope-tucson`), pushed to GitHub,
+and run on the ThinkStation (`~/stormscope`, IP 192.168.0.96).
+
+```powershell
+# laptop (PowerShell): publish code changes
+git add . ; git commit -m "message" ; git push
+```
+```bash
+# ThinkStation: get changes and run
+cd ~/stormscope && git pull
+uv run python hindcast.py 2>&1 | tee hindcast.log
+```
+```powershell
+# laptop: bring results back (PNGs + CSVs, no Zarr) into .\results
+powershell -ExecutionPolicy Bypass -File .\pull_results.ps1
+powershell -ExecutionPolicy Bypass -File .\pull_results.ps1 -Case 2024-07-25_21z -Logs
+```
+
+### One-time: password-free SSH from the laptop
+```powershell
+ssh-keygen -t ed25519            # accept defaults
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh nickynacky@192.168.0.96 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+### Single files by hand
+```powershell
+scp "nickynacky@192.168.0.96:~/stormscope/outputs/hindcast/<case>/compare_lead060.png" .\results\
+```
 
 ## Region
 
