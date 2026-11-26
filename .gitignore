@@ -1,0 +1,16 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+
+# Large or machine-specific outputs (stay on the ThinkStation)
+outputs/
+*.zarr/
+*.log
+
+# NVIDIA earth2studio source checkout used for reference examples
+e2s-src/
+
+# Misc
+.env
+cuda-keyring*.deb

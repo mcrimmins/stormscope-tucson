@@ -1,0 +1,15 @@
+# Hindcast cases for StormScope over the Tucson CWA.
+# init: forecast initialization time in UTC (MST = UTC - 7).
+# Use 2024 or later dates: StormScope was trained on 2018-2023.
+# GOES source is picked automatically (GOES-16 before 2025-04-07, GOES-19 after).
+
+cases:
+  - name: 2024-07-25_21z
+    init: "2024-07-25T21:00"
+    note: "Smoke-test case; border MCS SW of Tucson + Rim storms in forecast"
+
+  # Add your case days below (mix of big metro storms, Sky Island-only,
+  # Sonora drift-up, and 'bust' days). Example format:
+  # - name: 2024-08-XX_19z
+  #   init: "2024-08-XXT19:00"
+  #   note: "what happened"

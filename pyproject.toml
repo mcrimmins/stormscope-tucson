@@ -1,0 +1,34 @@
+[project]
+name = "stormscope"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "cartopy>=0.26.0",
+    "earth2studio[data,stormscope]",
+    "matplotlib>=3.11.2",
+    "natten==0.21.7+torch2130cu130",
+    "ninja>=1.13.2",
+    "numpy>=2.5.5",
+    "setuptools>=84.2.1",
+    "torch==2.13.0",
+    "wheel>=0.48.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "natten"
+url = "https://whl.natten.org"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+natten = { index = "natten" }
+earth2studio = { git = "https://github.com/NVIDIA/earth2studio.git", rev = "0.20.0" }
+
+[tool.uv]
+no-build-isolation-package = ["earth2grid"]
