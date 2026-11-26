@@ -23,7 +23,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dest = Join-Path $here "results"
 New-Item -ItemType Directory -Force $dest | Out-Null
 
-$target = if ($Case) { "outputs/hindcast/$Case" } else { "outputs/hindcast" }
+$target = if ($Case) { "outputs/hindcast*/$Case" } else { "outputs/hindcast*" }   # includes tagged experiments
 $logPart = if ($Logs) { " `$(ls -1 *.log 2>/dev/null)" } else { "" }
 
 # 1. Pack results on the ThinkStation (no Zarr)

@@ -73,17 +73,19 @@ def goes_satellite_for(t: np.datetime64) -> str:
     return "goes19" if t >= GOES19_START else "goes16"
 
 
-def load_models(device):
+def load_models(device, model_name=MODEL_NAME, full_domain=False):
     package = StormScopeBase.load_default_package()
     model = StormScopeGOES.load_model(
         package=package, conditioning_data_source=None,
-        model_name=MODEL_NAME, amp=True, compile=True,
+        model_name=model_name, amp=True, compile=True,
     ).to(device).eval()
     model_mrms = StormScopeMRMS.load_model(
         package=package, conditioning_data_source=GOES(),
         glm_data_source=GOESGLMGrid(satellite="east"),
-        model_name=MODEL_NAME, amp=True, compile=True,
+        model_name=model_name, amp=True, compile=True,
     ).to(device).eval()
+    if full_domain:
+        return model, model_mrms
     model = model.set_domain(*REGION, padding=PADDING)
     model_mrms = model_mrms.set_domain(*REGION, padding=PADDING)
     return model, model_mrms
@@ -152,6 +154,19 @@ def fetch_obs_refc(mrms, model_mrms, radar_vars, t, ys, xs, device):
     return obs
 
 
+def output_slices(m):
+    """Slices of the model grid covering REGION (regional or full-domain runs)."""
+    info = getattr(m, "region_info", None)
+    if info is not None:
+        return info.output_slices
+    lat, lon = to_np(m.latitudes), to_np(m.longitudes)
+    lon = np.where(lon > 180, lon - 360, lon)
+    s_, n_, w_, e_ = REGION
+    inside = (lat >= s_) & (lat <= n_) & (lon >= w_) & (lon <= e_)
+    yy, xx = np.where(inside)
+    return slice(yy.min(), yy.max() + 1), slice(xx.min(), xx.max() + 1)
+
+
 def fss(f_frac, o_frac, mask):
     num = np.sum(((f_frac - o_frac) ** 2)[mask])
     den = np.sum((f_frac ** 2 + o_frac ** 2)[mask])
@@ -168,10 +183,10 @@ def neighborhood_prob(members_field, thresh, size):
 # --------------------------------------------------------------------------
 # Main per-case routine
 # --------------------------------------------------------------------------
-def run_case(case, model, model_mrms, members, hours, device):
+def run_case(case, model, model_mrms, members, hours, device, out_root=OUT_ROOT):
     name = case["name"]
     t0 = np.datetime64(datetime.fromisoformat(case["init"]))
-    out = OUT_ROOT / name
+    out = out_root / name
     out.mkdir(parents=True, exist_ok=True)
     n_steps = int(hours * 60 / STEP_MIN)
     print(f"\n=== {name}: init {t0} UTC, {members} members, {n_steps} steps ===")
@@ -180,7 +195,7 @@ def run_case(case, model, model_mrms, members, hours, device):
         model, model_mrms, t0, members, device
     )
 
-    ys, xs = model_mrms.region_info.output_slices
+    ys, xs = output_slices(model_mrms)
     valid = to_np(model_mrms.valid_mask)[ys, xs].astype(bool)
     lat = to_np(model_mrms.latitudes)[ys, xs]
     lon = to_np(model_mrms.longitudes)[ys, xs]
@@ -354,20 +369,27 @@ def main():
     ap.add_argument("--only", default=None, help="run a single case by name")
     ap.add_argument("--members", type=int, default=16)
     ap.add_argument("--hours", type=float, default=6)
+    ap.add_argument("--model", default=MODEL_NAME,
+                    help="StormScope variant name (default: %(default)s)")
+    ap.add_argument("--full-domain", action="store_true",
+                    help="run on the full CONUS grid, score only the Tucson box")
+    ap.add_argument("--tag", default="",
+                    help="experiment label; outputs go to outputs/hindcast_<tag>/")
     args = ap.parse_args()
+    out_root = Path(f"outputs/hindcast_{args.tag}") if args.tag else OUT_ROOT
 
     cases = yaml.safe_load(open(args.cases))["cases"]
     if args.only:
         cases = [c for c in cases if c["name"] == args.only]
 
     device = torch.device("cuda")
-    model, model_mrms = load_models(device)
+    model, model_mrms = load_models(device, args.model, args.full_domain)
 
     all_scores = []
     for case in cases:
         try:
             all_scores.append(
-                run_case(case, model, model_mrms, args.members, args.hours, device)
+                run_case(case, model, model_mrms, args.members, args.hours, device, out_root)
             )
         except Exception as e:
             print(f"!!! case {case['name']} failed: {e}")
@@ -375,13 +397,13 @@ def main():
 
     if all_scores:
         allsc = pd.concat(all_scores)
-        OUT_ROOT.mkdir(parents=True, exist_ok=True)
-        allsc.to_csv(OUT_ROOT / "scores_all.csv", index=False)
+        out_root.mkdir(parents=True, exist_ok=True)
+        allsc.to_csv(out_root / "scores_all.csv", index=False)
         summary = (
             allsc.groupby(["thresh_dbz", "nbhd_km", "lead_min"])
             [["fss_stormscope", "fss_persistence", "freq_bias"]].mean().reset_index()
         )
-        summary.to_csv(OUT_ROOT / "scores_summary.csv", index=False)
+        summary.to_csv(out_root / "scores_summary.csv", index=False)
         print("\nMean FSS (>=35 dBZ, 33 km) by lead:")
         print(summary[(summary.thresh_dbz == 35) & (summary.nbhd_km == 33)]
               .to_string(index=False))
