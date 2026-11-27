@@ -141,7 +141,7 @@ function nwsLayers(map, interactive) {
     map.on('click', 'wwa-fill', e => {
       if (map.queryRenderedFeatures(e.point, { layers: ['lsr'] }).length) return;
       const html = e.features.map(f => { const p = f.properties;
-        return `<strong style="color:${p.color}">${p.label}</strong><br>NWS ${p.wfo === 'TWC' ? 'Tucson' : 'Phoenix'} · issued ${mstTime(p.iss)}, until ${mstTime(p.exp)} MST`; }).join('<hr style="border-color:#33414D">');
+        return `<strong style="color:${p.color}">${p.label}</strong><br>${p.key.endsWith('.A') ? 'Watch' : 'NWS'} ${String(p.wfo).split('/').map(w => ({ TWC: 'Tucson', PSR: 'Phoenix' })[w] || w).join(' & ')} · issued ${mstTime(p.iss)}, until ${mstTime(p.exp)} MST`; }).join('<hr style="border-color:#33414D">');
       new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
     });
     ['lsr', 'wwa-fill'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });

@@ -20,6 +20,7 @@ import requests
 import shapefile  # pyshp
 from matplotlib.path import Path as MplPath
 from shapely.geometry import box, mapping, shape
+from shapely.ops import unary_union
 
 IEM = "https://mesonet.agron.iastate.edu"
 WFOS = ["TWC", "PSR"]
@@ -86,7 +87,10 @@ def fetch_warnings(name, t0: datetime, t1: datetime, region):
     raw = _get(f"{IEM}/cgi-bin/request/gis/watchwarn.py", params, CACHE / f"{name}_wwa.zip", binary=True)
     s, n, w, e = region
     clip = box(w, s, e, n)
-    feats = []
+    # Collect every record, then build ONE feature per event:
+    #  - storm-based events (GTYPE "P"): the warning polygon only, never the county records
+    #  - county/zone-based events (watches): the union of all their counties/zones
+    rows = []
     with tempfile.TemporaryDirectory() as td:
         zipfile.ZipFile(io.BytesIO(raw)).extractall(td)
         shp = next(Path(td).glob("*.shp"), None)
@@ -97,31 +101,45 @@ def fetch_warnings(name, t0: datetime, t1: datetime, region):
             key = f"{rec.get('PHENOM')}.{rec.get('SIG')}"
             if key not in PRODUCTS or not sr.shape.points:
                 continue
-            geom = shape(sr.shape.__geo_interface__)
-            if not geom.is_valid:
-                geom = geom.buffer(0)
-            geom = geom.intersection(clip).simplify(0.003)
-            if geom.is_empty:
-                continue
-            iss = _parse(rec.get("ISSUED") or rec.get("INIT_ISS"))
+            iss = _parse(rec.get("INIT_ISS") or rec.get("ISSUED"))
             exp = _parse(rec.get("EXPIRED") or rec.get("INIT_EXP"))
             if iss is None or exp is None:
                 continue
-            label, color = PRODUCTS[key]
-            feats.append({"type": "Feature", "geometry": mapping(geom), "properties": {
-                "key": key, "label": label, "color": color, "wfo": rec.get("WFO"),
-                "etn": rec.get("ETN"), "gtype": rec.get("GTYPE"), "status": rec.get("STATUS"),
-                "issued": iss.isoformat()[:16] + "Z", "expires": exp.isoformat()[:16] + "Z",
-                "iss": int(iss.timestamp()), "exp": int(exp.timestamp()),
-            }})
-    # one feature per event (the shapefile can repeat an event for follow-up statements)
-    seen, out = set(), []
-    for f in sorted(feats, key=lambda f: f["properties"]["iss"]):
-        p = f["properties"]
-        k = (p["wfo"], p["key"], p["etn"], p["gtype"], p["issued"])
-        if k not in seen:
-            seen.add(k)
-            out.append(f)
+            geom = shape(sr.shape.__geo_interface__)
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+            rows.append({"key": key, "wfo": rec.get("WFO"), "etn": rec.get("ETN"),
+                         "gtype": str(rec.get("GTYPE") or "").upper(), "geom": geom,
+                         "iss": iss, "exp": exp, "status": rec.get("STATUS")})
+
+    events = {}
+    for r in rows:
+        # SPC watches share one number across offices; everything else is per office
+        ek = (r["key"], r["etn"]) if r["key"].endswith(".A") else (r["key"], r["wfo"], r["etn"])
+        events.setdefault(ek, []).append(r)
+
+    out = []
+    for ek, rs in events.items():
+        polys = [r for r in rs if r["gtype"] == "P"]
+        if polys:   # storm-based: initial polygon (earliest issued record)
+            r0 = min(polys, key=lambda r: r["iss"])
+            geom, iss, exp = r0["geom"], r0["iss"], max(r["exp"] for r in polys)
+        else:       # county/zone-based: merge all counties/zones of the event
+            geom = unary_union([r["geom"] for r in rs])
+            iss, exp = min(r["iss"] for r in rs), max(r["exp"] for r in rs)
+        geom = geom.intersection(clip).simplify(0.003)
+        if geom.is_empty:
+            continue
+        r0 = rs[0]
+        label, color = PRODUCTS[r0["key"]]
+        wfos = sorted({r["wfo"] for r in rs if r["wfo"]})
+        out.append({"type": "Feature", "geometry": mapping(geom), "properties": {
+            "key": r0["key"], "label": label, "color": color, "wfo": "/".join(wfos),
+            "etn": r0["etn"], "gtype": "P" if polys else "C",
+            "issued": iss.isoformat()[:16] + "Z", "expires": exp.isoformat()[:16] + "Z",
+            "iss": int(iss.timestamp()), "exp": int(exp.timestamp()),
+        }})
+    out.sort(key=lambda f: f["properties"]["iss"])
     return {"type": "FeatureCollection", "features": out}
 
 
