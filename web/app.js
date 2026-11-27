@@ -1,160 +1,204 @@
-// StormScope Tucson – case-study viewer
+// StormScope Tucson viewer: live runs + case studies
 const PRODUCTS = [
   { id: 'storm', label: 'Storm chance', sub: '≥35 dBZ within 10 km', legend: 'prob' },
+  { id: 'new', label: 'New storm development', sub: 'Storm chance where none within 30 km at start', legend: 'prob' },
   { id: 'rain', label: 'Rain chance', sub: '≥20 dBZ within 10 km', legend: 'prob' },
-  { id: 'strong', label: 'Strong storm cores', sub: '≥45 dBZ · trust first hour only', legend: 'prob' },
+  { id: 'strong', label: 'Strong storm cores', sub: '≥45 dBZ · first hour only', legend: 'prob', maxLead: 60 },
   { id: 'lightning', label: 'Lightning chance', sub: 'GLM flashes within 10 km', legend: 'prob' },
   { id: 'member', label: 'One possible outcome', sub: 'Ensemble member 1 reflectivity', legend: 'refl' },
 ];
 const PROB_COLORS = ['#17344D', '#1F5784', '#2E7BBE', '#5FA9E6', '#A9D6F7', '#F2A65A'];
 const REFL_COLORS = ['#04E9E7', '#019FF4', '#0300F4', '#02FD02', '#01C501', '#008E00', '#FDF802', '#E5BC00', '#FD9500', '#FD0000', '#D40000', '#BC0000', '#F800FD', '#9854C6'];
+// Confidence by lead time, from the 12-event hindcast verification (FSS vs persistence)
+const CONF = [
+  { max: 60, key: 'high', label: 'High confidence', opacity: 0.9 },
+  { max: 120, key: 'mod', label: 'Moderate confidence', opacity: 0.72 },
+  { max: 9999, key: 'low', label: 'Low confidence', opacity: 0.5 },
+];
+const conf = (L, p) => (p && p.maxLead && L > p.maxLead)
+  ? { key: 'low', label: 'Low confidence: strong cores fade after the first hour', opacity: 0.3 }
+  : CONF.find(c => L <= c.max);
+const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
-const S = { cases: [], data: null, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true };
+const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null };
 const $ = (id) => document.getElementById(id);
+const getJSON = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u); return r.json(); };
 
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
 const baseStyle = {
   version: 8,
   sources: {
-    base: { type: 'raster', tileSize: 256, maxzoom: 16,
-      attribution: 'Basemap © Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS',
+    base: { type: 'raster', tileSize: 256, maxzoom: 16, attribution: 'Basemap © Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS',
       tiles: [`${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`] },
-    hillshade: { type: 'raster', tileSize: 256, maxzoom: 16,
-      tiles: [`${ESRI}/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}`] },
-    labels: { type: 'raster', tileSize: 256, maxzoom: 16,
-      tiles: [`${ESRI}/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`] },
+    hillshade: { type: 'raster', tileSize: 256, maxzoom: 16, tiles: [`${ESRI}/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}`] },
+    labels: { type: 'raster', tileSize: 256, maxzoom: 16, tiles: [`${ESRI}/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`] },
   },
   layers: [
     { id: 'base', type: 'raster', source: 'base' },
     { id: 'hillshade', type: 'raster', source: 'hillshade', paint: { 'raster-opacity': 0.55 } },
   ],
 };
-const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
 function makeMap(el) {
-  const m = new maplibregl.Map({ container: el, style: baseStyle, center: [-111.0, 32.4], zoom: 5.6,
-    attributionControl: { compact: true }, dragRotate: false });
+  const m = new maplibregl.Map({ container: el, style: baseStyle, center: [-111.0, 32.4], zoom: 5.6, attributionControl: { compact: true }, dragRotate: false });
   m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
   return m;
 }
 const mapL = makeMap('mapL');
 const mapR = makeMap('mapR');
-
-// keep both maps in sync
 let syncing = false;
-function sync(a, b) {
-  a.on('move', () => { if (syncing) return; syncing = true; b.jumpTo({ center: a.getCenter(), zoom: a.getZoom() }); syncing = false; });
-}
+function sync(a, b) { a.on('move', () => { if (syncing) return; syncing = true; b.jumpTo({ center: a.getCenter(), zoom: a.getZoom() }); syncing = false; }); }
 sync(mapL, mapR); sync(mapR, mapL);
 
-function setOverlay(map, url, bounds) {
+function setOverlay(map, url, bounds, opacity = 0.9) {
   const src = map.getSource('ov');
-  if (src) { src.updateImage({ url, coordinates: bounds }); return; }
-  map.addSource('ov', { type: 'image', url, coordinates: bounds });
-  map.addLayer({ id: 'ov', type: 'raster', source: 'ov', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } });
-  map.addLayer({ id: 'labels', type: 'raster', source: 'labels' });
+  if (src) { src.updateImage({ url, coordinates: bounds }); }
+  else {
+    map.addSource('ov', { type: 'image', url, coordinates: bounds });
+    map.addLayer({ id: 'ov', type: 'raster', source: 'ov', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } });
+    map.addLayer({ id: 'labels', type: 'raster', source: 'labels' });
+  }
+  map.setPaintProperty('ov', 'raster-opacity', opacity);
 }
 
 let cityMarkers = [];
 function drawCities() {
-  cityMarkers.forEach(m => m.remove());
-  cityMarkers = [];
+  cityMarkers.forEach(m => m.remove()); cityMarkers = [];
   for (const [name, ll] of Object.entries(S.data.cities)) {
     const el = document.createElement('button');
     el.className = 'city' + (name === S.city ? ' on' : '');
     el.setAttribute('aria-label', `Show timeline for ${name}`);
     el.innerHTML = MINOR.has(name) ? '<i></i>' : `<i></i>${name}`;
-    el.title = name;
-    el.dataset.city = name;
+    el.title = name; el.dataset.city = name;
     el.onclick = () => { S.city = name; render(); };
     cityMarkers.push(new maplibregl.Marker({ element: el, anchor: 'left', offset: [-6, 0] }).setLngLat(ll).addTo(mapL));
   }
 }
 
-function preload(urls) { urls.forEach(u => { const i = new Image(); i.src = u; }); }
-
-function leadText(min) { const h = Math.floor(min / 60), m = min % 60; return `+${h}h${String(m).padStart(2, '0')}`; }
+const preload = (urls) => (urls || []).forEach(u => { const i = new Image(); i.src = u; });
+const leadText = (min) => `+${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+const obsUrl = (i) => S.live ? S.data.obs_init : S.data.products.obs[i];
 
 function render() {
   const d = S.data; if (!d) return;
+  if (!S.city || !d.points[S.city]) S.city = Object.keys(d.points)[0];
   const p = PRODUCTS.find(x => x.id === S.product);
-  const L = d.leads[S.lead];
+  const L = d.leads[S.lead], c = conf(L, p);
   $('productTitle').textContent = `${p.label} · ${p.sub}`;
   $('validLabel').textContent = `Valid ${d.valid_mst[S.lead]} MST · ${leadText(L)} after a ${d.init_utc.slice(11)} UTC start`;
   $('leadLabel').textContent = `${leadText(L)} · ${d.valid_mst[S.lead]}`;
+  $('confBadge').textContent = c.label;
+  $('confBadge').className = 'badge ' + c.key;
   $('leftTag').textContent = `Forecast · ${p.label}`;
+  $('rightTag').textContent = S.live ? 'Observed radar at start time' : 'Observed radar (MRMS)';
   $('legend').innerHTML = p.legend === 'prob'
     ? `<span>10%</span><span class="bar">${PROB_COLORS.map(c => `<i style="background:${c}"></i>`).join('')}</span><span>90%+</span>`
     : `<span>15</span><span class="bar">${REFL_COLORS.map(c => `<i style="background:${c}"></i>`).join('')}</span><span>75 dBZ</span>`;
   const go = () => {
-    setOverlay(mapL, d.products[S.product][S.lead], d.bounds);
-    if (S.compare) setOverlay(mapR, d.products.obs[S.lead], d.bounds);
+    setOverlay(mapL, d.products[S.product][S.lead], d.bounds, c.opacity);
+    if (S.compare) setOverlay(mapR, obsUrl(S.lead), d.bounds);
   };
   mapL.loaded() ? go() : mapL.once('load', go);
   if (S.compare && !mapR.loaded()) mapR.once('load', go);
   document.querySelectorAll('.prod').forEach(b => b.classList.toggle('on', b.dataset.id === S.product));
   document.querySelectorAll('.city').forEach(b => b.classList.toggle('on', b.dataset.city === S.city));
-  drawPoint(); drawRanked();
+  drawPoint(); drawTiming();
 }
 
 // ---------- charts ----------
 function path(vals, x, y) {
   let s = '', pen = false;
-  vals.forEach((v, i) => { if (v == null) { pen = false; return; } s += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '; pen = true; });
+  (vals || []).forEach((v, i) => { if (v == null) { pen = false; return; } s += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '; pen = true; });
   return s;
+}
+function confBands(leads, x, yTop, yBot, labels = true) {
+  let g = '';
+  const idx = (m) => leads.findIndex(L => L > m);
+  const edges = [0, idx(60), idx(120), leads.length - 1].map(i => i < 0 ? leads.length - 1 : i);
+  const fills = ['rgba(255,255,255,0)', 'rgba(255,255,255,0.035)', 'rgba(255,255,255,0.07)'];
+  const names = ['High', 'Moderate', 'Low'];
+  for (let k = 0; k < 3; k++) {
+    const a = x(edges[k]), b = x(edges[k + 1]);
+    if (b <= a) continue;
+    g += `<rect x="${a}" y="${yTop}" width="${b - a}" height="${yBot - yTop}" fill="${fills[k]}"/>`;
+    if (labels) g += `<text x="${(a + b) / 2}" y="${yTop + 11}" text-anchor="middle" fill="#7F909D" font-size="9.5">${names[k]}</text>`;
+  }
+  return g;
 }
 
 function drawPoint() {
   const d = S.data, pt = d.points[S.city], n = d.leads.length;
-  const X0 = 34, X1 = 312, Y0 = 140, H = 124;
+  const svg = $('pointChart'), W = Math.max(280, svg.clientWidth || 320);
+  svg.setAttribute('viewBox', `0 0 ${W} 180`);
+  const X0 = 34, X1 = W - 8, Y0 = 140, H = 124;
   const x = i => X0 + (i / Math.max(1, n - 1)) * (X1 - X0), y = v => Y0 - v * H;
   const storm = pt.storm, light = pt.lightning;
   const peak = Math.max(...storm.map(v => v ?? 0)), pi = storm.indexOf(peak);
-  const ticks = d.leads.map((L, i) => [L, i]).filter(([L]) => L % 60 === 0);
-  let g = '';
-  [0, .25, .5, .75, 1].forEach(v => g += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#25303A' : '#3A4854'}"/>`);
-  g += `<text x="${X0 - 6}" y="${y(0) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">0</text><text x="${X0 - 6}" y="${y(.5) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">50</text><text x="${X0 - 6}" y="${y(1) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">100%</text>`;
+  let g = confBands(d.leads, x, y(1), Y0);
+  [0, .5, 1].forEach(v => g += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#25303A' : '#3A4854'}"/><text x="${X0 - 6}" y="${y(v) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">${v === 1 ? '100%' : v * 100}</text>`);
   g += `<line x1="${x(S.lead)}" x2="${x(S.lead)}" y1="${y(1)}" y2="${Y0}" stroke="#F2A65A" stroke-opacity=".5" stroke-width="2"/>`;
   g += `<path d="${path(storm, x, y)} L${X1} ${Y0} L${X0} ${Y0} Z" fill="#5FA9E6" fill-opacity=".16"/>`;
   g += `<path d="${path(storm, x, y)}" fill="none" stroke="#5FA9E6" stroke-width="2.5"/>`;
   g += `<path d="${path(light, x, y)}" fill="none" stroke="#F2A65A" stroke-width="2" stroke-dasharray="5 4"/>`;
-  pt.obs_storm.forEach((o, i) => { if (o) g += `<circle cx="${x(i)}" cy="${Y0 + 10}" r="3.2" fill="#E6EDF2"/>`; });
-  ticks.forEach(([L, i]) => g += `<text x="${x(i)}" y="170" text-anchor="middle" fill="#9DB0BF" font-size="10">${d.valid_mst[i].replace(':00', '')}</text>`);
-  $('pointChart').innerHTML = g;
+  (pt.obs_storm || []).forEach((o, i) => { if (o) g += `<circle cx="${x(i)}" cy="${Y0 + 10}" r="3.2" fill="#E6EDF2"/>`; });
+  d.leads.forEach((L, i) => { if (L % 60 === 0) g += `<text x="${x(i)}" y="172" text-anchor="middle" fill="#9DB0BF" font-size="10">${d.valid_mst[i].replace(':00', '')}</text>`; });
+  svg.innerHTML = g;
   $('pointName').textContent = S.city;
-  const obsAny = pt.obs_storm.some(Boolean);
-  $('pointSummary').textContent = `Peak storm chance ${Math.round(peak * 100)}% around ${d.valid_mst[pi]}. ` +
-    (obsAny ? 'Storms were observed within 10 km during this period.' : 'No storms were observed within 10 km.');
+  const obsAny = (pt.obs_storm || []).some(Boolean);
+  $('pointSummary').textContent = `Peak storm chance ${Math.round(peak * 100)}% around ${d.valid_mst[pi]}.` +
+    (S.live ? '' : obsAny ? ' Storms were observed within 10 km during this period.' : ' No storms were observed within 10 km.');
+  $('obsKey').style.display = S.live ? 'none' : '';
 }
 
-function drawRanked() {
+// timing table: when does each place get storms / lightning?
+function timing(pt, d) {
+  const t = d.valid_mst, s = pt.storm.map(v => v ?? 0), l = pt.lightning.map(v => v ?? 0);
+  const first = s.findIndex(v => v > 0);
+  const win = (th) => { const i = s.findIndex(v => v >= th); if (i < 0) return null; let j = s.length - 1; while (s[j] < th) j--; return [i, j]; };
+  const likely = win(0.5), possible = win(0.3);
+  const peak = Math.max(...s), pi = s.indexOf(peak);
+  const lt = l.map((v, i) => v >= 0.3 ? i : -1).filter(i => i >= 0);
+  const lEnd = lt.length ? (lt[lt.length - 1] === l.length - 1 ? `after ${t[t.length - 1]}` : t[lt[lt.length - 1] + 1]) : '—';
+  const o = (pt.obs_storm || []).findIndex(Boolean);
+  return {
+    first: first < 0 ? '—' : t[first],
+    window: likely ? `Likely ${t[likely[0]]}–${t[likely[1]]}` : possible ? `Possible ${t[possible[0]]}–${t[possible[1]]}` : 'Unlikely',
+    cls: likely ? 'likely' : possible ? 'possible' : 'unlikely',
+    peak, peakAt: t[pi], lEnd, obs: o < 0 ? 'None' : t[o],
+  };
+}
+function drawTiming() {
   const d = S.data;
-  const rows = Object.entries(d.points).map(([c, p]) => [c, Math.max(...p.storm.map(v => v ?? 0)), p.obs_storm.some(Boolean)])
-    .sort((a, b) => b[1] - a[1]);
-  $('ranked').innerHTML = rows.map(([c, v, o]) =>
-    `<button class="rank" data-city="${c}"><span class="n">${c}${o ? ' ●' : ''}</span><span class="b"><i style="width:${v * 100}%;background:${c === S.city ? '#F2A65A' : '#5FA9E6'}"></i></span><span class="v">${Math.round(v * 100)}%</span></button>`).join('') +
-    `<p class="muted small" style="margin:8px 0 0">● storm observed within 10 km</p>`;
-  document.querySelectorAll('.rank').forEach(b => b.onclick = () => { S.city = b.dataset.city; render(); });
+  const rows = Object.entries(d.points).map(([c, p]) => [c, timing(p, d)]).sort((a, b) => b[1].peak - a[1].peak);
+  $('timingTable').innerHTML = `<thead><tr><th>Place</th><th>First chance<br><span>any member</span></th><th>Storm window<br><span>≥50% likely · ≥30% possible</span></th><th>Peak</th><th>Lightning risk ends<br><span>below 30%</span></th>${S.live ? '' : '<th>Observed storm<br><span>first within 10 km</span></th>'}</tr></thead><tbody>` +
+    rows.map(([c, r]) => `<tr class="${c === S.city ? 'sel' : ''}" data-city="${c}"><td><button class="link">${c}</button></td><td class="mono">${r.first}</td><td><span class="tag ${r.cls}">${r.window}</span></td><td class="mono">${Math.round(r.peak * 100)}% <span class="muted">${r.peak > 0 ? r.peakAt : ''}</span></td><td class="mono">${r.lEnd}</td>${S.live ? '' : `<td class="mono">${r.obs}</td>`}</tr>`).join('') + '</tbody>';
+  document.querySelectorAll('#timingTable tr[data-city] button').forEach(b => b.onclick = () => { S.city = b.closest('tr').dataset.city; render(); });
 }
 
 function drawSkill() {
-  const d = S.data, sc = d.scores, n = d.leads.length;
-  const svg = $('skillChart'), W = Math.max(320, svg.clientWidth || 640);
+  const d = S.data, sc = d.scores;
+  $('skillCard').style.display = sc ? '' : 'none';
+  if (!sc) return;
+  const svg = $('skillChart'), W = Math.max(320, svg.clientWidth || 640), n = d.leads.length;
   svg.setAttribute('viewBox', `0 0 ${W} 200`);
   const X0 = 40, X1 = W - 14, Y0 = 170, H = 158;
   const x = i => X0 + (i / Math.max(1, n - 1)) * (X1 - X0), y = v => Y0 - Math.max(0, v) * H;
-  let g = '';
+  let g = confBands(d.leads, x, y(1), Y0);
   [0, .25, .5, .75, 1].forEach(v => g += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#25303A' : '#3A4854'}"/><text x="${X0 - 6}" y="${y(v) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">${v}</text>`);
   d.leads.forEach((L, i) => { if (L % 30 === 0) g += `<text x="${x(i)}" y="190" text-anchor="middle" fill="#9DB0BF" font-size="10">${leadText(L)}</text>`; });
   [['fss20', '#5FA9E6', ''], ['pers20', '#5FA9E6', '5 4'], ['fss35', '#F2A65A', ''], ['pers35', '#F2A65A', '5 4']].forEach(([k, c, dash]) =>
     g += `<path d="${path(sc[k], x, y)}" fill="none" stroke="${c}" stroke-width="2.2" stroke-dasharray="${dash}"/>`);
-  $('skillChart').innerHTML = g;
+  svg.innerHTML = g;
 }
 
 // ---------- controls ----------
 $('productList').innerHTML = PRODUCTS.map(p => `<button class="prod" data-id="${p.id}">${p.label}<span>${p.sub}</span></button>`).join('');
-document.querySelectorAll('.prod').forEach(b => b.onclick = () => { S.product = b.dataset.id; preload(S.data.products[S.product]); render(); });
-
+document.querySelectorAll('.prod').forEach(b => b.onclick = () => {
+  S.product = b.dataset.id; preload(S.data.products[S.product]);
+  const p = PRODUCTS.find(x => x.id === S.product);
+  if (p.maxLead && S.data.leads[S.lead] > p.maxLead) { S.lead = Math.max(0, S.data.leads.indexOf(p.maxLead)); $('leadSlider').value = S.lead; }
+  render();
+});
 $('leadSlider').oninput = e => { stop(); S.lead = +e.target.value; render(); };
 function stop() { clearInterval(S.timer); S.playing = false; $('playBtn').textContent = '▶'; $('playBtn').setAttribute('aria-label', 'Play loop'); }
 $('playBtn').onclick = () => {
@@ -170,30 +214,54 @@ $('compareToggle').onchange = e => {
 };
 $('caseSelect').onchange = e => loadCase(e.target.value);
 
-async function loadCase(name) {
+async function loadCase(name, keepLead = false) {
   stop();
-  S.data = await (await fetch(`data/${name}.json`)).json();
-  S.lead = Math.min(S.data.leads.length - 1, S.data.leads.indexOf(60) >= 0 ? S.data.leads.indexOf(60) : 0);
-  const sl = $('leadSlider'); sl.max = S.data.leads.length - 1; sl.value = S.lead;
-  $('caseNote').textContent = S.data.note || '';
+  if (name === '__live') {
+    const idx = await getJSON('data/live/index.json');
+    S.liveRun = idx.runs[0];
+    S.data = await getJSON(S.liveRun); S.live = true;
+  } else {
+    S.data = await getJSON(`data/${name}.json`); S.live = false;
+  }
+  const d = S.data;
+  if (!keepLead) S.lead = Math.max(0, d.leads.indexOf(60));
+  S.lead = Math.min(S.lead, d.leads.length - 1);
+  const sl = $('leadSlider'); sl.max = d.leads.length - 1; sl.value = S.lead;
+  $('modeTag').textContent = S.live ? 'Live · updated every 30 min' : 'Case-study mode · past event';
+  $('caseHead').textContent = S.live ? 'This run' : 'This case';
+  $('caseNote').textContent = S.live ? 'Latest experimental forecast run.' : (d.note || '');
   const c = S.cases.find(c => c.name === name);
-  $('caseMeta').textContent = `Start ${c ? c.init_mst : ''} (${S.data.init_utc.replace('T', ' ')} UTC) · ${S.data.members} members`;
-  preload([...S.data.products[S.product], ...S.data.products.obs]);
+  $('caseMeta').textContent = S.live
+    ? `Start ${d.init_utc.replace('T', ' ')} UTC · finished ${d.made_utc.replace('T', ' ')} UTC · ${d.members} members`
+    : `Start ${c ? c.init_mst : ''} (${d.init_utc.replace('T', ' ')} UTC) · ${d.members} members`;
+  preload([...d.products[S.product], ...(d.products.obs || [])]);
   drawCities(); drawSkill(); render();
   if (!S.fitted) {
-    const b = S.data.bounds, fit = () => mapL.fitBounds([b[3], b[1]], { padding: 10, duration: 0 });
+    const b = d.bounds, fit = () => mapL.fitBounds([b[3], b[1]], { padding: 10, duration: 0 });
     mapL.loaded() ? fit() : mapL.once('load', fit);
     S.fitted = true;
   }
 }
 
-(async function init() {
-  const idx = await (await fetch('data/cases.json')).json();
-  S.cases = idx.cases;
-  $('caseSelect').innerHTML = idx.cases.map(c => `<option value="${c.name}">${c.init_mst} — ${c.note.slice(0, 60)}</option>`).join('');
-  const start = idx.cases.find(c => c.name.startsWith('2026-08-05')) || idx.cases[0];
-  $('caseSelect').value = start.name;
-  loadCase(start.name);
-})();
+// live mode: check for a newer run every 2 minutes
+setInterval(async () => {
+  if (!S.live) return;
+  try { const idx = await getJSON('data/live/index.json'); if (idx.runs[0] !== S.liveRun) loadCase('__live', true); } catch (e) { /* offline */ }
+}, 120000);
 
-window.addEventListener('resize', () => { if (S.data) drawSkill(); });
+window.addEventListener('resize', () => { if (S.data) { drawSkill(); drawPoint(); } });
+
+(async function init() {
+  const idx = await getJSON('data/cases.json').catch(() => ({ cases: [] }));
+  S.cases = idx.cases;
+  let hasLive = false;
+  try { const li = await getJSON('data/live/index.json'); hasLive = li.runs && li.runs.length > 0; } catch (e) { /* no live runs yet */ }
+  const opts = (hasLive ? ['<option value="__live">Latest live run</option>'] : [])
+    .concat(idx.cases.map(c => `<option value="${c.name}">${c.init_mst} — ${c.note.slice(0, 60)}</option>`));
+  $('caseSelect').innerHTML = opts.join('');
+  const want = new URLSearchParams(location.search).get('case');
+  const start = want || (hasLive ? '__live' : ((idx.cases.find(c => c.name.startsWith('2026-08-05')) || idx.cases[0] || {}).name));
+  if (!start) return;
+  $('caseSelect').value = start;
+  loadCase(start);
+})();

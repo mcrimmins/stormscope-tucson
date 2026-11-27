@@ -20,3 +20,6 @@ cuda-keyring*.deb
 
 # Generated web data (export_web.py)
 web/data/
+
+# S3 credentials/config
+s3.env

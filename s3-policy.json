@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListOnlyTheStormscopeFolder",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::cales-climate-reports",
+      "Condition": { "StringLike": { "s3:prefix": ["climate/stormscope", "climate/stormscope/*"] } }
+    },
+    {
+      "Sid": "WriteOnlyTheStormscopeFolder",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::cales-climate-reports/climate/stormscope/*"
+    },
+    {
+      "Sid": "OptionalCloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": "cloudfront:CreateInvalidation",
+      "Resource": "arn:aws:cloudfront::YOUR-ACCOUNT-ID:distribution/YOUR-DISTRIBUTION-ID"
+    }
+  ]
+}

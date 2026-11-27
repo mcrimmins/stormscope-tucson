@@ -47,6 +47,23 @@ CITIES = {
     "Ajo": (32.37, -112.86), "Phoenix": (33.45, -112.07),
 }
 
+def load_locations(path="locations.yaml"):
+    """Places for timelines/timing tables; edit locations.yaml to add burn scars, washes, venues."""
+    try:
+        locs = yaml.safe_load(open(path))["locations"]
+        return {l["name"]: (float(l["lat"]), float(l["lon"])) for l in locs}
+    except FileNotFoundError:
+        return CITIES
+
+
+NEW_RADIUS_PTS = 21   # ~63 km box (~30 km radius): "new" = no >=35 dBZ this close at start
+
+
+def new_storm_mask(obs0):
+    """True where no storm (>=35 dBZ) was observed within ~30 km at the start time."""
+    return ~maximum_filter(np.nan_to_num(obs0) >= 35, size=NEW_RADIUS_PTS)
+
+
 # probability colors (match the viewer legend): transparent below 10%
 PROB_COLORS = ["#17344D", "#1F5784", "#2E7BBE", "#5FA9E6", "#A9D6F7", "#F2A65A"]
 PROB_BOUNDS = [0.1, 0.2, 0.35, 0.5, 0.7, 0.9, 1.01]
@@ -116,17 +133,20 @@ def export_case(case_dir: Path, meta: dict, out: Path):
     refc = ds.refc.values.astype(np.float32)          # member, lead, y, x
     glm = ds.glm_density.values.astype(np.float32)
     obs = ds.obs_refc.values
+    newmask = new_storm_mask(ds.obs_refc_init.values)
+    cities = load_locations()
 
     # city -> nearest target-grid index
     city_ix = {c: (int(np.abs(lats - la).argmin()), int(np.abs(lons - lo).argmin()))
-               for c, (la, lo) in CITIES.items()}
-    points = {c: {"storm": [], "rain": [], "lightning": [], "obs_storm": []} for c in CITIES}
-    products = {k: [] for k in ["storm", "rain", "strong", "lightning", "member", "obs"]}
+               for c, (la, lo) in cities.items()}
+    points = {c: {"storm": [], "rain": [], "lightning": [], "obs_storm": []} for c in cities}
+    products = {k: [] for k in ["storm", "new", "rain", "strong", "lightning", "member", "obs"]}
     glm_frac = []
 
     for s, L in enumerate(leads):
         fields = {
             "storm": nbhd_prob(refc[:, s], 35),
+            "new": nbhd_prob(refc[:, s], 35) * newmask,
             "rain": nbhd_prob(refc[:, s], 20),
             "strong": nbhd_prob(refc[:, s], 45),
             "lightning": nbhd_prob(glm[:, s], GLM_THRESH),
@@ -165,7 +185,7 @@ def export_case(case_dir: Path, meta: dict, out: Path):
                    [REGION[3], REGION[0]], [REGION[2], REGION[0]]],
         "products": products,
         "points": points,
-        "cities": {c: [lo, la] for c, (la, lo) in CITIES.items()},
+        "cities": {c: [lo, la] for c, (la, lo) in cities.items()},
         "scores": {
             "fss35": series(35, "fss_stormscope"), "pers35": series(35, "fss_persistence"),
             "fss20": series(20, "fss_stormscope"), "pers20": series(20, "fss_persistence"),

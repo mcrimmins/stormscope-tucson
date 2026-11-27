@@ -1,0 +1,23 @@
+# Places shown on the map, in point timelines and in the "Timing at key places" table.
+# Add burn scars, washes, low-water crossings, trailheads, event venues, highway segments.
+# lat/lon in decimal degrees. Re-run export_web.py (or wait for the next live run) after editing.
+# Keep the list to ~25 places so the map stays readable.
+
+locations:
+  - {name: Tucson,       lat: 32.22, lon: -110.97}
+  - {name: Oro Valley,   lat: 32.39, lon: -110.97}
+  - {name: Marana,       lat: 32.44, lon: -111.22}
+  - {name: Vail,         lat: 32.05, lon: -110.71}
+  - {name: Sierra Vista, lat: 31.55, lon: -110.30}
+  - {name: Nogales,      lat: 31.34, lon: -110.93}
+  - {name: Douglas,      lat: 31.34, lon: -109.55}
+  - {name: Benson,       lat: 31.97, lon: -110.29}
+  - {name: Willcox,      lat: 32.25, lon: -109.83}
+  - {name: Safford,      lat: 32.83, lon: -109.71}
+  - {name: Casa Grande,  lat: 32.88, lon: -111.76}
+  - {name: Sells,        lat: 31.91, lon: -111.88}
+  - {name: Ajo,          lat: 32.37, lon: -112.86}
+  - {name: Phoenix,      lat: 33.45, lon: -112.07}
+  # Examples to fill in (check coordinates before use):
+  # - {name: "Bighorn Fire scar (Catalinas)", lat: 32.40, lon: -110.80}
+  # - {name: "I-10 at Picacho Peak",          lat: 32.64, lon: -111.40}

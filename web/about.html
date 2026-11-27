@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -23,6 +23,7 @@ a{color:#7DBCEB}a:hover{color:#B5DAF5}
 
 <header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid #25303A">
 <span style="font-size: 18px; font-weight: 700">StormScope Tucson <span style="font-weight: 500; color: #9DB0BF">· About</span></span>
+<a href="#deep-dive" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; color: #7DBCEB; font-size: 14px; font-weight: 600">Technical deep dive</a>
 <a href="index.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid #33414D; border-radius: 8px; background: #1E2830; color: #E6EDF2; text-decoration: none; font-size: 14px; font-weight: 600">Back to the viewer</a>
 </header>
 
@@ -56,13 +57,13 @@ a{color:#7DBCEB}a:hover{color:#B5DAF5}
 
 <section style="display: flex; flex-direction: column; gap: 16px">
 <h2 style="margin: 0; font-size: 26px">What the research shows</h2>
-<p style="margin: 0; color: #C3CFD8; max-width: 820px">StormScope was introduced by NVIDIA researchers in early 2026 and trained on observations over the continental U.S. from 2018–2023. In their evaluation:</p>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">StormScope was introduced by NVIDIA researchers with NOAA and university collaborators in 2026 and trained on observations over the continental U.S. from 2018–2023. In their evaluation of severe-weather days in March–August 2025:</p>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
-<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">~75%</span><span style="color: #B9C6D0; font-size: 15px">higher skill than the operational state of the art for strong radar echoes at 30 minutes (about 45% at 2 hours)</span></div>
-<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">900+</span><span style="color: #B9C6D0; font-size: 15px">forecasts evaluated against NOAA's next-generation operational model and other baselines</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">~75%</span><span style="color: #B9C6D0; font-size: 15px">higher critical success index than NOAA&#39;s Warn-on-Forecast System for echoes ≥40 dBZ at 30 minutes (about 45% at 2 hours)</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">900+</span><span style="color: #B9C6D0; font-size: 15px">forecasts (929) compared with the Warn-on-Forecast System, the NowcastNet AI model and radar extrapolation</span></div>
 <div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">New storms</span><span style="color: #B9C6D0; font-size: 15px">anticipated after the forecast starts, not just existing echoes moved forward</span></div>
 </div>
-<p style="margin: 0; color: #9DB0BF; font-size: 14px">Source: Pathak et al. (2026), <a href="https://arxiv.org/abs/2601.17268">arXiv:2601.17268</a>, a preprint not yet peer reviewed. Model and code: <a href="https://github.com/NVIDIA/earth2studio">NVIDIA Earth2Studio</a>, released under the NVIDIA Open Model License.</p>
+<p style="margin: 0; color: #9DB0BF; font-size: 14px">Source: Pathak et al. (2026), <a href="https://arxiv.org/abs/2601.17268">arXiv:2601.17268</a> (v2, Nov 2026), a preprint not yet peer reviewed. Technical details and full references are in the <a href="#deep-dive">technical deep dive</a> below.</p>
 </section>
 
 <section style="display: flex; flex-direction: column; gap: 16px">
@@ -99,8 +100,113 @@ a{color:#7DBCEB}a:hover{color:#B5DAF5}
 <span style="color: #E3D2B8">Products may be late or missing if observations or computing are interrupted. Check the data age shown in the viewer.</span>
 </section>
 
+<section id="deep-dive" style="display: flex; flex-direction: column; gap: 16px; border-top: 1px solid #25303A; padding-top: 40px">
+<span style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #F2A65A; font-weight: 600">Technical deep dive</span>
+<h2 style="margin: 0; font-size: 30px">How StormScope works, and how we run it</h2>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">This section is for partners who want the details behind the forecasts. Numbers about the model and the published evaluation come from Pathak et al. (2026) [1] and NVIDIA&#39;s model card [2]; numbers about southern Arizona come from our own tests.</p>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">1. A forecast learned from observations, not physics equations</h3>
+<p style="margin: 0; color: #C3CFD8">Conventional storm-scale models such as the HRRR or the Warn-on-Forecast System (WoFS) [9] solve the equations of atmospheric physics from an analyzed starting state. StormScope instead learns how satellite, radar and lightning observations evolve from one 10-minute image to the next, using six years of past observations. No numerical model is used for training or to start a forecast, so it can start the moment new observations arrive.</p>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">2. Inputs</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li><strong>Satellite:</strong> eight GOES-R ABI channels [6]: visible 0.47, 0.64 and 0.86 µm; shortwave window 3.9 µm; water vapor 6.19, 6.95 and 7.34 µm; clean infrared window 10.35 µm.</li>
+<li><strong>Radar:</strong> MRMS maximum composite and base reflectivity [5].</li>
+<li><strong>Lightning:</strong> GOES Geostationary Lightning Mapper (GLM) [7] event counts in 10-minute windows.</li>
+<li><strong>Static and time information:</strong> terrain height, a radar-coverage map, latitude/longitude and the solar angle.</li>
+<li><strong>History:</strong> the last hour of observations, six frames 10 minutes apart. Everything is placed on the 3 km HRRR grid.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">3. Model architecture</h3>
+<p style="margin: 0; color: #C3CFD8">StormScope is a pair of <strong>diffusion transformers</strong> [3, 4] of about 260 million parameters each: one for satellite imagery, one for radar and lightning. A diffusion model generates an image by starting from random noise and removing it step by step, guided by the recent observations, so each run draws a different but physically plausible future. To make attention affordable on a 1024 × 1792 grid, the model uses <strong>neighborhood attention</strong> [8], where each patch only attends to nearby patches. Separate &#34;expert&#34; networks handle the coarse, large-scale structure and the fine convective detail.</p>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">4. How a forecast is made</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li>At each 10-minute step the <strong>satellite model</strong> predicts the next set of GOES images from the last hour.</li>
+<li>The <strong>radar/lightning model</strong> then predicts reflectivity and lightning, conditioned on the satellite forecast.</li>
+<li>Both predictions are appended to the one-hour window and the oldest frame is dropped (an autoregressive rollout), repeating out to the lead time needed.</li>
+<li>Running the whole chain several times with different random noise gives an <strong>ensemble</strong> of possible outcomes.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">5. What the published evaluation found [1]</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li>929 forecasts on about 60 severe-weather days, March–August 2025, compared with WoFS (bias-corrected), the NowcastNet AI model [10] and radar extrapolation including pySTEPS [11].</li>
+<li>Critical success index for echoes ≥40 dBZ was about 76% higher than WoFS at 30 minutes and 45% higher at 2 hours. Probability of detecting ≥40 dBZ echoes was 75/64/50% at 30/60/120 minutes, versus 47/40/34% for WoFS.</li>
+<li>It detected storms that formed shortly after the forecast started better than WoFS, which the authors attribute partly to growing cumulus seen by satellite.</li>
+<li>Forecasters rated the forecasts a median 8 out of 10 in 111 subjective evaluations.</li>
+<li>Stated limits: skill converges toward WoFS by about 3 hours, ensembles become too confident (underdispersive) at longer leads, it does not predict hail or wind, and longer leads likely need larger-scale weather context.</li>
+<li>The evaluation days were chosen for severe-weather potential, mostly outside the Southwest; monsoon storms over desert terrain were not specifically tested.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">6. How we run it for southern Arizona</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li><strong>Model:</strong> StormScope <em>Flash</em> (3 km, 10 minutes) via NVIDIA Earth2Studio 0.20 [12], under the NVIDIA Open Model License [13]. Flash is a distilled version that needs 5–7 model evaluations per step instead of about 100, which is what makes it practical on one desktop GPU.</li>
+<li><strong>Domain:</strong> a 670 × 650 km forecast area (29.5–35.5°N, 114.5–107.5°W) with about 750 km of surrounding context (padding of 250 grid points) so storms and moisture can move in from the Gulf of California, Sonora and the Four Corners.</li>
+<li><strong>Ensemble:</strong> 6 members, 18 steps (3 hours), about 11 minutes per run on one NVIDIA RTX 3090 (24 GB), using bfloat16 precision.</li>
+<li><strong>Data:</strong> GOES-East (GOES-19 since April 2025), MRMS and GLM from the NOAA Open Data Dissemination program on Amazon Web Services.</li>
+<li><strong>Products:</strong> the chance that at least one member has reflectivity above 20, 35 or 45 dBZ, or lightning, within about 10 km of each point (a neighborhood probability), recalculated every 10 minutes of forecast time.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">7. How we verify it</h3>
+<p style="margin: 0; color: #C3CFD8">We reran 12 past events and compared each 10-minute forecast with observed MRMS reflectivity. The main score is the <strong>fractions skill score</strong> (FSS) [14]: it compares the fraction of an area covered by storms in the forecast and in the observations within a neighborhood (33 km here), so a storm forecast slightly out of place still gets partial credit; 1 is perfect and 0 has no skill. The baseline is <strong>persistence</strong>, the starting radar image held still. <strong>Frequency bias</strong> is forecast storm area divided by observed storm area: 1 is ideal, below 1 means storms are under-forecast.</p>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">8. What we learned while setting it up</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li><strong>Context matters most.</strong> With only about 75 km of surrounding context, forecast storms faded to about 16% of the observed storm area by 2 hours. With about 750 km of context, the same forecasts kept about 70%, matching a full-CONUS run.</li>
+<li><strong>Flash trades strength for speed.</strong> On a test day, the full (non-distilled) model kept storm area close to observed through 3 hours and scored about four times better than persistence for thunderstorms at 3 hours, where Flash steadily weakened storms. But the full model only runs over all of CONUS and takes about 1 h 45 min for a 3-hour forecast on our GPU, too slow for live use. A comparison over all 12 events is underway.</li>
+<li><strong>Where it is strongest:</strong> placing and moving rain and storm areas over the first 2 hours. <strong>Where it is weakest:</strong> isolated new storms over the Sky Islands west of the main activity, strong cores after the first hour, and evening decay.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">Glossary</h3>
+<ul style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px">
+<li><strong>dBZ:</strong> radar reflectivity. Roughly, 20 dBZ is light rain, 35 dBZ a thunderstorm, 45 dBZ and up heavy rain and possibly hail.</li>
+<li><strong>Nowcast:</strong> a forecast for the next 0–6 hours built mainly from current observations.</li>
+<li><strong>Ensemble:</strong> several equally plausible forecasts; their agreement indicates confidence.</li>
+<li><strong>Neighborhood probability:</strong> the share of ensemble members with an event anywhere within a set distance of a point.</li>
+<li><strong>Critical success index (CSI):</strong> hits divided by hits plus misses plus false alarms.</li>
+</ul>
+</div>
+
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 18px">References</h3>
+<ol style="margin: 0; padding-left: 20px; color: #C3CFD8; display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+<li>Pathak, J., et al. (2026). Skillful thunderstorm forecasts learned directly from observations. arXiv preprint. <a href="https://arxiv.org/abs/2601.17268">arXiv:2601.17268</a></li>
+<li>NVIDIA. StormScope GOES-MRMS model card. <a href="https://huggingface.co/nvidia/stormscope-goes-mrms">huggingface.co/nvidia/stormscope-goes-mrms</a></li>
+<li>Peebles, W., &amp; Xie, S. (2023). Scalable diffusion models with transformers. <a href="https://arxiv.org/abs/2212.09748">arXiv:2212.09748</a></li>
+<li>Karras, T., Aittala, M., Aila, T., &amp; Laine, S. (2022). Elucidating the design space of diffusion-based generative models. <a href="https://arxiv.org/abs/2206.00364">arXiv:2206.00364</a></li>
+<li>Smith, T. M., et al. (2016). Multi-Radar Multi-Sensor (MRMS) severe weather and aviation products. <em>Bull. Amer. Meteor. Soc.</em> <a href="https://doi.org/10.1175/BAMS-D-14-00173.1">doi:10.1175/BAMS-D-14-00173.1</a></li>
+<li>Schmit, T. J., et al. (2017). A closer look at the ABI on the GOES-R series. <em>Bull. Amer. Meteor. Soc.</em> <a href="https://doi.org/10.1175/BAMS-D-15-00230.1">doi:10.1175/BAMS-D-15-00230.1</a></li>
+<li>NOAA GOES-R Program. Geostationary Lightning Mapper. <a href="https://www.goes-r.gov/spacesegment/glm.html">goes-r.gov/spacesegment/glm.html</a></li>
+<li>Hassani, A., et al. (2023). Neighborhood attention transformer. <a href="https://arxiv.org/abs/2204.07143">arXiv:2204.07143</a></li>
+<li>NOAA National Severe Storms Laboratory. Warn-on-Forecast. <a href="https://www.nssl.noaa.gov/projects/wof/">nssl.noaa.gov/projects/wof</a></li>
+<li>Zhang, Y., et al. (2023). Skilful nowcasting of extreme precipitation with NowcastNet. <em>Nature</em>. <a href="https://doi.org/10.1038/s41586-023-06184-4">doi:10.1038/s41586-023-06184-4</a></li>
+<li>Pulkkinen, S., et al. (2019). Pysteps: an open-source Python library for probabilistic precipitation nowcasting. <em>Geosci. Model Dev.</em> <a href="https://doi.org/10.5194/gmd-12-4185-2019">doi:10.5194/gmd-12-4185-2019</a></li>
+<li>NVIDIA Earth2Studio. <a href="https://github.com/NVIDIA/earth2studio">github.com/NVIDIA/earth2studio</a></li>
+<li>NVIDIA Open Model License. <a href="https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/">nvidia.com</a></li>
+<li>Roberts, N. M., &amp; Lean, H. W. (2008). Scale-selective verification of rainfall accumulations from high-resolution forecasts of convective events. <em>Mon. Wea. Rev.</em> <a href="https://doi.org/10.1175/2007MWR2123.1">doi:10.1175/2007MWR2123.1</a></li>
+</ol>
+</div>
+</section>
+
 <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; border-top: 1px solid #25303A; padding-top: 32px">
-<div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 16px">Who we are</h2><span style="color: #B9C6D0; font-size: 15px">Climate program, University of Arizona Cooperative Extension (CALES). Contact: [YOUR EMAIL]</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 16px">Who we are</h2><span style="color: #B9C6D0; font-size: 15px">Climate program, University of Arizona Cooperative Extension (CALES). Contact: yourname@arizona.edu</span></div>
 <div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 16px">Data and credits</h2><span style="color: #B9C6D0; font-size: 15px">GOES-19 ABI and GLM, and MRMS radar, from NOAA via the NOAA Open Data Dissemination program on AWS. Model by NVIDIA Earth-2. Code: <a href="https://github.com/mcrimmins/stormscope-tucson">github.com/mcrimmins/stormscope-tucson</a></span></div>
 </section>
 </div>
@@ -108,3 +214,4 @@ a{color:#7DBCEB}a:hover{color:#B5DAF5}
 
 </body>
 </html>
+
