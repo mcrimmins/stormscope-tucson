@@ -379,7 +379,7 @@ def plot_fss(scores, name, out, thresh=35, nbhd_km=33):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default="cases.yaml")
-    ap.add_argument("--only", default=None, help="run a single case by name")
+    ap.add_argument("--only", default=None, help="run only these cases (comma-separated names)")
     ap.add_argument("--members", type=int, default=16)
     ap.add_argument("--hours", type=float, default=6)
     ap.add_argument("--model", default=MODEL_NAME,
@@ -399,7 +399,8 @@ def main():
 
     cases = yaml.safe_load(open(args.cases))["cases"]
     if args.only:
-        cases = [c for c in cases if c["name"] == args.only]
+        wanted = set(args.only.split(","))
+        cases = [c for c in cases if c["name"] in wanted]
 
     device = torch.device("cuda")
     model, model_mrms = load_models(device, args.model, args.full_domain, args.padding)

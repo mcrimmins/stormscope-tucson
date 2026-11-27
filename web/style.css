@@ -68,3 +68,12 @@ table.timing tr.sel td{background:#1D2A35}
 .tag.likely{background:#F2A65A;color:#1A1208}
 .tag.possible{background:#2E7BBE;color:#fff}
 .tag.unlikely{background:#1E2830;color:#9DB0BF}
+
+.strip{padding:0 16px 10px}
+.nwslegend{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+.nwslegend span{display:flex;align-items:center;gap:6px}
+.nwslegend i{display:inline-block;width:14px;height:10px;border:2px solid;border-radius:2px}
+.nwslegend b{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #000}
+.maplibregl-popup-content{background:#161D23;color:#E6EDF2;border:1px solid #33414D;font:13px Inter,sans-serif;max-width:280px}
+.maplibregl-popup-tip{display:none}
+.maplibregl-popup-close-button{color:#9DB0BF}

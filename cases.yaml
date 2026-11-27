@@ -55,3 +55,32 @@ cases:
   - name: 2026-10-31_13z
     init: "2026-10-31T13:00"
     note: "Halloween cutoff low + atmospheric river; morning showers moving into SE AZ (6 am MST init); record Tucson daily rain"
+
+  # --- Blowing dust / haboob cases (2025-2026), NWS Tucson + Phoenix ----------
+  - name: 2025-07-28_21z
+    init: "2025-07-28T21:00"
+    note: "Dust Storm Warning near San Simon (NE Cochise Co.) on I-10 at 4:11 pm"
+
+  - name: 2025-08-15_21z
+    init: "2025-08-15T21:00"
+    note: "Dust Storm Warning near Picacho / Eloy (Pinal Co.) at 4:31 pm"
+
+  - name: 2025-08-25_20z
+    init: "2025-08-25T20:00"
+    note: "Aug 25 2025 haboob (1 pm start): storms form over SE AZ; dust wall later reaches Phoenix"
+
+  - name: 2025-08-25_22z
+    init: "2025-08-25T22:00"
+    note: "Aug 25 2025 haboob (3 pm start): dust wall from Pinal Co. into Phoenix, severe winds, flash flooding"
+
+  - name: 2025-09-04_01z
+    init: "2025-09-04T01:00"
+    note: "Sep 3 2025 evening (6 pm start): Phoenix-area severe, dust storm and flash flood warnings"
+
+  - name: 2026-07-13_00z
+    init: "2026-07-13T00:00"
+    note: "Jul 12 2026 evening (5 pm start): dust storm warnings across the Phoenix Valley"
+
+  - name: 2026-08-20_00z
+    init: "2026-08-20T00:00"
+    note: "Aug 19 2026 evening (5 pm start): Dust Storm Warning on I-10 in Pima/Pinal Co. at 7:08 pm"

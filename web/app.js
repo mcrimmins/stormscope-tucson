@@ -20,7 +20,7 @@ const conf = (L, p) => (p && p.maxLead && L > p.maxLead)
   : CONF.find(c => L <= c.max);
 const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
-const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null };
+const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null, nws: null, showWWA: true, showLSR: true };
 const $ = (id) => document.getElementById(id);
 const getJSON = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u); return r.json(); };
 
@@ -96,13 +96,113 @@ function render() {
     : `<span>15</span><span class="bar">${REFL_COLORS.map(c => `<i style="background:${c}"></i>`).join('')}</span><span>75 dBZ</span>`;
   const go = () => {
     setOverlay(mapL, d.products[S.product][S.lead], d.bounds, c.opacity);
-    if (S.compare) setOverlay(mapR, obsUrl(S.lead), d.bounds);
+    nwsLayers(mapL, true); nwsFilter(mapL);
+    if (S.compare && mapR.loaded()) { setOverlay(mapR, obsUrl(S.lead), d.bounds); nwsLayers(mapR, false); nwsFilter(mapR); }
   };
   mapL.loaded() ? go() : mapL.once('load', go);
   if (S.compare && !mapR.loaded()) mapR.once('load', go);
   document.querySelectorAll('.prod').forEach(b => b.classList.toggle('on', b.dataset.id === S.product));
   document.querySelectorAll('.city').forEach(b => b.classList.toggle('on', b.dataset.city === S.city));
-  drawPoint(); drawTiming();
+  drawPoint(); drawTiming(); drawEventStrip();
+}
+
+
+// ---------- NWS warnings & storm reports ----------
+const initEpoch = () => Date.parse(S.data.init_utc + 'Z') / 1000;
+const validEpoch = (i = S.lead) => initEpoch() + 60 * S.data.leads[i];
+function mstTime(epoch) {
+  const d = new Date((epoch - 7 * 3600) * 1000);
+  let h = d.getUTCHours(); const m = String(d.getUTCMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
+}
+const EMPTY = { type: 'FeatureCollection', features: [] };
+let popupsBound = false;
+function nwsLayers(map, interactive) {
+  const wwa = S.nws ? S.nws.warnings : EMPTY, lsr = S.nws ? S.nws.lsrs : EMPTY;
+  if (map.getSource('wwa')) { map.getSource('wwa').setData(wwa); map.getSource('lsr').setData(lsr); }
+  else {
+    map.addSource('wwa', { type: 'geojson', data: wwa });
+    map.addSource('lsr', { type: 'geojson', data: lsr });
+    map.addLayer({ id: 'wwa-fill', type: 'fill', source: 'wwa', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.1 } });
+    map.addLayer({ id: 'wwa-line', type: 'line', source: 'wwa',
+      paint: { 'line-color': ['get', 'color'], 'line-width': ['match', ['slice', ['get', 'key'], 3], 'A', 1.2, 2.4] } });
+    map.addLayer({ id: 'lsr', type: 'circle', source: 'lsr',
+      paint: { 'circle-radius': 6, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0E1317', 'circle-stroke-width': 1.5 } });
+  }
+  if (interactive && !popupsBound) {
+    popupsBound = true;
+    map.on('click', 'lsr', e => {
+      const p = e.features[0].properties;
+      const mag = p.magnitude && p.magnitude !== 'null' ? ` · ${p.magnitude} ${p.unit && p.unit !== 'null' ? p.unit : ''}` : '';
+      new maplibregl.Popup().setLngLat(e.lngLat).setHTML(
+        `<strong>${p.typetext}${mag}</strong><br>${mstTime(p.t)} MST · ${p.city || ''}${p.county && p.county !== 'null' ? ', ' + p.county + ' Co.' : ''}<br><span style="color:#9DB0BF">${p.remark && p.remark !== 'null' ? p.remark : ''}</span><br><span style="color:#7F909D">Source: ${p.source || 'n/a'}</span>`).addTo(map);
+    });
+    map.on('click', 'wwa-fill', e => {
+      if (map.queryRenderedFeatures(e.point, { layers: ['lsr'] }).length) return;
+      const html = e.features.map(f => { const p = f.properties;
+        return `<strong style="color:${p.color}">${p.label}</strong><br>NWS ${p.wfo === 'TWC' ? 'Tucson' : 'Phoenix'} · issued ${mstTime(p.iss)}, until ${mstTime(p.exp)} MST`; }).join('<hr style="border-color:#33414D">');
+      new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+    });
+    ['lsr', 'wwa-fill'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });
+  }
+}
+function nwsFilter(map) {
+  if (!map.getLayer('wwa-fill')) return;
+  const t = validEpoch();
+  const wf = ['all', ['<=', ['get', 'iss'], t], ['>', ['get', 'exp'], t]];
+  map.setFilter('wwa-fill', wf); map.setFilter('wwa-line', wf);
+  map.setFilter('lsr', ['all', ['<=', ['get', 't'], t], ['>', ['get', 't'], t - 3 * 3600]]);
+  map.setPaintProperty('lsr', 'circle-opacity', ['interpolate', ['linear'], ['-', t, ['get', 't']], 0, 1, 1800, 0.9, 10800, 0.35]);
+  map.setPaintProperty('lsr', 'circle-stroke-opacity', ['interpolate', ['linear'], ['-', t, ['get', 't']], 0, 1, 10800, 0.4]);
+  ['wwa-fill', 'wwa-line'].forEach(l => map.setLayoutProperty(l, 'visibility', S.showWWA ? 'visible' : 'none'));
+  map.setLayoutProperty('lsr', 'visibility', S.showLSR ? 'visible' : 'none');
+}
+function nwsLegend() {
+  if (!S.nws) { $('nwsLegend').innerHTML = '<span class="muted">No NWS data for this run.</span>'; return; }
+  const w = new Map(), l = new Map();
+  S.nws.warnings.features.forEach(f => w.set(f.properties.label, f.properties.color));
+  S.nws.lsrs.features.forEach(f => l.set(f.properties.group, f.properties.color));
+  $('nwsLegend').innerHTML = [...w].map(([k, c]) => `<span><i style="border-color:${c};background:${c}22"></i>${k}</span>`).join('') +
+    [...l].map(([k, c]) => `<span><b style="background:${c}"></b>${k} report</span>`).join('') || '<span class="muted">None in this period.</span>';
+}
+function drawEventStrip() {
+  const svg = $('eventStrip'), d = S.data, W = Math.max(320, svg.clientWidth || 640);
+  svg.setAttribute('viewBox', `0 0 ${W} 46`);
+  const t0 = initEpoch(), t1 = validEpoch(d.leads.length - 1);
+  const X0 = 60, X1 = W - 14, x = t => X0 + (t - t0) / (t1 - t0) * (X1 - X0);
+  let g = `<text x="0" y="16" fill="#9DB0BF" font-size="10">Warnings</text><text x="0" y="38" fill="#9DB0BF" font-size="10">Reports</text>`;
+  g += `<line x1="${X0}" x2="${X1}" y1="12" y2="12" stroke="#25303A"/><line x1="${X0}" x2="${X1}" y1="34" y2="34" stroke="#25303A"/>`;
+  if (S.nws) {
+    S.nws.warnings.features.forEach(f => { const p = f.properties;
+      if (p.key.endsWith('.A') || p.exp <= t0 || p.iss > t1) return;
+      const a = x(Math.max(p.iss, t0)), b = x(Math.min(p.exp, t1));
+      g += `<rect x="${a}" y="6" width="${Math.max(2, b - a)}" height="12" rx="2" fill="${p.color}" fill-opacity=".35" stroke="${p.color}"><title>${p.label} ${mstTime(p.iss)}–${mstTime(p.exp)}</title></rect>`; });
+    S.nws.lsrs.features.forEach(f => { const p = f.properties;
+      if (p.t < t0 || p.t > t1) return;
+      g += `<circle cx="${x(p.t)}" cy="34" r="4.5" fill="${p.color}" stroke="#0E1317"><title>${p.typetext} ${mstTime(p.t)} ${p.city || ''}</title></circle>`; });
+  }
+  g += `<line x1="${x(validEpoch())}" x2="${x(validEpoch())}" y1="2" y2="44" stroke="#F2A65A" stroke-width="2"/>`;
+  svg.innerHTML = g;
+  svg.onclick = e => {
+    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (W / r.width);
+    const t = t0 + (px - X0) / (X1 - X0) * (t1 - t0);
+    let best = 0; d.leads.forEach((L, i) => { if (Math.abs(validEpoch(i) - t) < Math.abs(validEpoch(best) - t)) best = i; });
+    stop(); S.lead = best; $('leadSlider').value = best; render();
+  };
+}
+function drawNwsVerify() {
+  const v = S.nws && S.nws.verify;
+  $('nwsCard').style.display = v && (v.warnings.length || v.reports.length) ? '' : 'none';
+  if (!v) return;
+  const pct = x => `${Math.round(x * 100)}%`, sm = v.summary;
+  const cls = x => x >= 0.5 ? 'likely' : x >= 0.3 ? 'possible' : 'unlikely';
+  $('nwsSummary').innerHTML = `<strong>${sm.warnings_ge50} of ${sm.warnings}</strong> warnings/advisories issued during this forecast had a ≥50% forecast storm chance inside the polygon while in effect. ` +
+    `<strong>${sm.reports_ge50} of ${sm.reports}</strong> storm reports had ≥50% forecast storm chance within 10 km (±20 min).`;
+  $('warnTable').innerHTML = v.warnings.length ? `<thead><tr><th>Warning / advisory</th><th>Issued</th><th>Forecast chance<br><span>at issue time</span></th><th>Forecast chance<br><span>peak while in effect</span></th><th>Forecast signal<br><span>first ≥50% in polygon</span></th></tr></thead><tbody>` +
+    v.warnings.map(r => `<tr><td>${r.label} <span class="muted">(${r.wfo})</span></td><td class="mono">${mstTime(Date.parse(r.issued) / 1000)} <span class="muted">+${Math.floor(r.lead_at_issue / 60)}h${String(r.lead_at_issue % 60).padStart(2, '0')}</span></td><td><span class="tag ${cls(r.p_at_issue)}">${pct(r.p_at_issue)}</span></td><td><span class="tag ${cls(r.p_during)}">${pct(r.p_during)}</span></td><td class="mono">${r.first_ge50_lead == null ? '—' : (r.signal_before_issue_min > 0 ? `${r.signal_before_issue_min} min before issue` : r.signal_before_issue_min === 0 ? 'at issue' : `${-r.signal_before_issue_min} min after issue`)}</td></tr>`).join('') + '</tbody>' : '';
+  $('lsrTable').innerHTML = v.reports.length ? `<thead><tr><th>Storm report</th><th>Time</th><th>Place</th><th>Forecast chance<br><span>within 10 km, ±20 min</span></th></tr></thead><tbody>` +
+    v.reports.map(r => `<tr><td>${r.typetext}</td><td class="mono">${mstTime(Date.parse(r.valid) / 1000)}</td><td>${r.city || ''}</td><td><span class="tag ${cls(r.p_near)}">${pct(r.p_near)}</span></td></tr>`).join('') + '</tbody>' : '';
 }
 
 // ---------- charts ----------
@@ -213,6 +313,8 @@ $('compareToggle').onchange = e => {
   setTimeout(() => { mapL.resize(); mapR.resize(); render(); }, 50);
 };
 $('caseSelect').onchange = e => loadCase(e.target.value);
+$('wwaToggle').onchange = e => { S.showWWA = e.target.checked; render(); };
+$('lsrToggle').onchange = e => { S.showLSR = e.target.checked; render(); };
 
 async function loadCase(name, keepLead = false) {
   stop();
@@ -224,6 +326,11 @@ async function loadCase(name, keepLead = false) {
     S.data = await getJSON(`data/${name}.json`); S.live = false;
   }
   const d = S.data;
+  S.nws = null;
+  if (d.nws) { try { S.nws = await getJSON(d.nws); } catch (e) { S.nws = null; } }
+  if (mapL.getSource('wwa')) nwsLayers(mapL, true);
+  if (mapR.getSource('wwa')) nwsLayers(mapR, false);
+  nwsLegend(); drawNwsVerify();
   if (!keepLead) S.lead = Math.max(0, d.leads.indexOf(60));
   S.lead = Math.min(S.lead, d.leads.length - 1);
   const sl = $('leadSlider'); sl.max = d.leads.length - 1; sl.value = S.lead;
@@ -249,7 +356,7 @@ setInterval(async () => {
   try { const idx = await getJSON('data/live/index.json'); if (idx.runs[0] !== S.liveRun) loadCase('__live', true); } catch (e) { /* offline */ }
 }, 120000);
 
-window.addEventListener('resize', () => { if (S.data) { drawSkill(); drawPoint(); } });
+window.addEventListener('resize', () => { if (S.data) { drawSkill(); drawPoint(); drawEventStrip(); } });
 
 (async function init() {
   const idx = await getJSON('data/cases.json').catch(() => ({ cases: [] }));

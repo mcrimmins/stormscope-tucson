@@ -142,6 +142,7 @@ def export_case(case_dir: Path, meta: dict, out: Path):
     points = {c: {"storm": [], "rain": [], "lightning": [], "obs_storm": []} for c in cities}
     products = {k: [] for k in ["storm", "new", "rain", "strong", "lightning", "member", "obs"]}
     glm_frac = []
+    storm_grids = []
 
     for s, L in enumerate(leads):
         fields = {
@@ -157,6 +158,8 @@ def export_case(case_dir: Path, meta: dict, out: Path):
             fn = f"{k}_{L:03d}.png"
             save_png(g, img / fn, PROB_COLORS, PROB_BOUNDS)
             products[k].append(f"data/img/{name}/{fn}")
+            if k == "storm":
+                storm_grids.append(g)
             if k in ("storm", "rain", "lightning"):
                 for c, (i, j) in city_ix.items():
                     v = g[i, j]
@@ -192,6 +195,22 @@ def export_case(case_dir: Path, meta: dict, out: Path):
             "bias35": series(35, "freq_bias"), "bias20": series(20, "freq_bias"),
         },
     }
+    # NWS warnings/advisories + local storm reports (IEM archive) and verification
+    try:
+        import nws_events
+        from datetime import datetime as _dt, timezone as _tz
+        t_init = _dt.fromisoformat(str(t0)[:19]).replace(tzinfo=_tz.utc)
+        ev = nws_events.case_events(name, t_init, leads[-1] / 60, REGION,
+                                    np.stack(storm_grids), leads, lats, lons)
+        (out / f"{name}_nws.json").write_text(json.dumps(ev))
+        data["nws"] = f"data/{name}_nws.json"
+        v = ev["verify"]["summary"]
+        print(f"    NWS: {len(ev['warnings']['features'])} warnings/advisories, "
+              f"{len(ev['lsrs']['features'])} reports; in window: {v['warnings_ge50']}/{v['warnings']} "
+              f"warnings and {v['reports_ge50']}/{v['reports']} reports had >=50% forecast storm chance")
+    except Exception as e:  # network or parsing problem: export the case without NWS layers
+        print(f"    NWS events skipped: {e}")
+        data["nws"] = None
     (out / f"{name}.json").write_text(json.dumps(data))
     print(f"{name}: {len(leads)} steps exported; lightning exceedance "
           f"{100*np.mean(glm_frac):.2f}% of points (GLM_THRESH={GLM_THRESH})")

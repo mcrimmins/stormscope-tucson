@@ -35,6 +35,13 @@
       <div id="productList" class="products"></div>
     </section>
     <section class="card">
+      <h2 class="eyebrow">NWS Tucson &amp; Phoenix</h2>
+      <label class="check"><input type="checkbox" id="wwaToggle" checked> Warnings &amp; advisories in effect</label>
+      <label class="check"><input type="checkbox" id="lsrToggle" checked> Storm reports (last 3 h)</label>
+      <div id="nwsLegend" class="nwslegend small"></div>
+      <p class="muted small" style="margin:6px 0 0">From the Iowa Environmental Mesonet archive. Reports are unofficial and incomplete.</p>
+    </section>
+    <section class="card">
       <h2 class="eyebrow">Compare</h2>
       <label class="check"><input type="checkbox" id="compareToggle" checked> Show observed radar side by side</label>
     </section>
@@ -67,6 +74,7 @@
         <input type="range" id="leadSlider" min="0" max="0" value="0" aria-label="Forecast lead time">
         <span class="mono" id="leadLabel"></span>
       </div>
+      <div class="strip"><svg id="eventStrip" viewBox="0 0 640 46" role="img" aria-label="Timeline of NWS warnings and storm reports"></svg></div>
     </section>
 
     <section class="card">
@@ -75,6 +83,16 @@
         <span class="muted small">Sorted by peak storm chance · storms = ≥35 dBZ within 10 km · click a place for its timeline</span>
       </div>
       <div class="tablewrap"><table id="timingTable" class="timing"></table></div>
+    </section>
+
+    <section class="card" id="nwsCard">
+      <div class="row-between">
+        <h2 class="h2">NWS warnings &amp; storm reports vs. this forecast</h2>
+        <span class="muted small">Forecast storm chance (≥35 dBZ within 10 km) from this run's start time</span>
+      </div>
+      <p id="nwsSummary" class="small" style="margin:8px 0"></p>
+      <div class="tablewrap"><table id="warnTable" class="timing"></table></div>
+      <div class="tablewrap" style="margin-top:12px"><table id="lsrTable" class="timing"></table></div>
     </section>
 
     <section class="card" id="skillCard">
