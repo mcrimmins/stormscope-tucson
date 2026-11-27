@@ -100,6 +100,27 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh nickynacky@192.168.0.96 "mkdir -
 scp "nickynacky@192.168.0.96:~/stormscope/outputs/hindcast/<case>/compare_lead060.png" .\results\
 ```
 
+## Final setup (from hindcast tests, Nov 2026)
+
+Flash model, regional mode with **padding 250** (~750 km context), **6 members**, **3 h**:
+`uv run python hindcast.py --members 6 --hours 3 --padding 250 --tag final_p250_m6`
+(~35 s/step, ~16 GiB; 8 members runs out of memory). Padding 25 made storms die out
+within 2 h; padding 250 matched a full-CONUS run.
+
+| 12 cases, FSS 33 km | 1 h | 2 h | 3 h |
+|---|---|---|---|
+| ≥20 dBZ StormScope / persistence | 0.88 / 0.65 | 0.62 / 0.40 | 0.40 / 0.27 |
+| ≥35 dBZ StormScope / persistence | 0.60 / 0.39 | 0.25 / 0.16 | 0.15 / 0.09 |
+
+## Case-study website
+
+```bash
+uv run python export_web.py                 # forecasts -> web/data/ (PNGs + JSON)
+cd web && uv run python -m http.server 8000 # open http://192.168.0.96:8000 on the laptop
+```
+
+`rescore.py <experiment>` re-scores full-domain runs on the Tucson box.
+
 ## Region
 
 `(29.5, 35.5, -114.5, -107.5)` — Tucson CWA plus Sonora and Mogollon Rim context

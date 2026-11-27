@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About StormScope Tucson</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1317}
+a{color:#7DBCEB}a:hover{color:#B5DAF5}
+</style>
+
+</head>
+<body>
+
+<div style="min-height: 100vh; background: #0E1317; color: #E6EDF2; font-family: Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.6">
+
+<div style="background: #3A2A12; color: #F6D7A7; padding: 8px 24px; font-size: 13px">
+<strong>Experimental research product</strong> — not an official forecast. For warnings and forecasts see <a href="https://www.weather.gov/twc/" style="color: #FFC979">NWS Tucson</a>.
+</div>
+
+<header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid #25303A">
+<span style="font-size: 18px; font-weight: 700">StormScope Tucson <span style="font-weight: 500; color: #9DB0BF">· About</span></span>
+<a href="index.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid #33414D; border-radius: 8px; background: #1E2830; color: #E6EDF2; text-decoration: none; font-size: 14px; font-weight: 600">Back to the viewer</a>
+</header>
+
+<div style="max-width: 1040px; margin: 0 auto; padding: 48px 24px 64px; display: flex; flex-direction: column; gap: 48px">
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<span style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #F2A65A; font-weight: 600">About this project</span>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.15; letter-spacing: -0.02em; max-width: 820px">Testing AI storm nowcasts for the next 0–3 hours in southern Arizona</h1>
+<p style="margin: 0; font-size: 18px; color: #C3CFD8; max-width: 780px">StormScope Tucson runs an artificial-intelligence weather model, trained only on satellite, radar and lightning observations, to show where thunderstorms are likely to form and move over the next three hours. It is a research prototype from the University of Arizona Cooperative Extension climate program, built to find out whether this new kind of model is useful for monsoon forecasting in our desert and mountain terrain.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 26px">Why the next few hours matter</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Monsoon hazards develop fast</span><span style="color: #B9C6D0; font-size: 15px">Flash floods in washes and burn scars, lightning, damaging winds and dust can go from clear skies to dangerous in under an hour.</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Radar extrapolation fades quickly</span><span style="color: #B9C6D0; font-size: 15px">Moving today's radar echoes forward works for an hour or so, but misses storms that have not formed yet, which is most monsoon storms.</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Weather models are costly</span><span style="color: #B9C6D0; font-size: 15px">Physics-based storm-scale models are powerful but need large computers. An AI model like this one runs on a single desktop graphics card.</span></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 26px">How it works</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+<div style="background: #161D23; border-top: 3px solid #5FA9E6; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9DB0BF">1 · Observe</span><span style="font-weight: 600">Latest observations</span><span style="color: #B9C6D0; font-size: 15px">GOES-19 satellite imagery (8 infrared and water-vapor channels), MRMS radar mosaic and GLM lightning, every 10 minutes.</span></div>
+<div style="background: #161D23; border-top: 3px solid #5FA9E6; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9DB0BF">2 · Forecast</span><span style="font-weight: 600">NVIDIA StormScope</span><span style="color: #B9C6D0; font-size: 15px">A generative AI model predicts the next satellite and radar images in 10-minute steps on a 3 km grid, out to 3 hours.</span></div>
+<div style="background: #161D23; border-top: 3px solid #5FA9E6; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9DB0BF">3 · Ensemble</span><span style="font-weight: 600">6 possible outcomes</span><span style="color: #B9C6D0; font-size: 15px">Each run makes 6 different, equally plausible forecasts. Where they agree, confidence is higher.</span></div>
+<div style="background: #161D23; border-top: 3px solid #F2A65A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9DB0BF">4 · Probabilities</span><span style="font-weight: 600">Maps you can use</span><span style="color: #B9C6D0; font-size: 15px">We turn the 16 forecasts into chances of storms, heavy cores and lightning within about 10 km, by hour and by location.</span></div>
+</div>
+<p style="margin: 0; color: #9DB0BF; font-size: 15px">Runs cover a 670 × 650 km box from the Mogollon Rim into northern Sonora, centered on the NWS Tucson forecast area. Each 6-member, 3-hour run takes about 11 minutes on one NVIDIA RTX 3090 at the University of Arizona.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 26px">What the research shows</h2>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">StormScope was introduced by NVIDIA researchers in early 2026 and trained on observations over the continental U.S. from 2018–2023. In their evaluation:</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">~75%</span><span style="color: #B9C6D0; font-size: 15px">higher skill than the operational state of the art for strong radar echoes at 30 minutes (about 45% at 2 hours)</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">900+</span><span style="color: #B9C6D0; font-size: 15px">forecasts evaluated against NOAA's next-generation operational model and other baselines</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 30px; font-weight: 700; color: #5FA9E6">New storms</span><span style="color: #B9C6D0; font-size: 15px">anticipated after the forecast starts, not just existing echoes moved forward</span></div>
+</div>
+<p style="margin: 0; color: #9DB0BF; font-size: 14px">Source: Pathak et al. (2026), <a href="https://arxiv.org/abs/2601.17268">arXiv:2601.17268</a>, a preprint not yet peer reviewed. Model and code: <a href="https://github.com/NVIDIA/earth2studio">NVIDIA Earth2Studio</a>, released under the NVIDIA Open Model License.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 26px">What we are testing here</h2>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">Published results are averaged over the whole country. Southern Arizona is different, so we are checking how well the model does here before anyone relies on it:</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px">
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Sky Island storms</span><span style="color: #B9C6D0; font-size: 15px">Do forecasts start storms over the Catalinas, Rincons and Huachucas at the right time, and move them into the valleys correctly?</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Storms from Mexico</span><span style="color: #B9C6D0; font-size: 15px">U.S. radar coverage ends near the border, so the model sees storms in Sonora mainly through satellite imagery.</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Storm strength</span><span style="color: #B9C6D0; font-size: 15px">Early tests place storms well but weaken the strongest cores after the first hour. We show heavy-core chances for the first hour only until this is better understood.</span></div>
+<div style="background: #161D23; border: 1px solid #25303A; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Past events</span><span style="color: #B9C6D0; font-size: 15px">We rerun notable 2026 monsoon and fall storm days and compare each forecast with what radar observed. See Case studies in the viewer.</span></div>
+</div>
+<p style="margin: 0; color: #9DB0BF; font-size: 15px">Skill is measured with the fractions skill score (how well forecast and observed storm areas overlap within a neighborhood) and compared with persistence, a forecast that simply holds the current radar still.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 26px">Our results so far</h2>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">We reran 12 events (July 2024, the 2026 monsoon and the Halloween 2026 storm) and compared every 10-minute forecast step with observed MRMS radar. Scores are fractions skill scores within 33 km; persistence holds the starting radar still.</p>
+<div style="overflow-x: auto"><table style="border-collapse: collapse; min-width: 560px; font-size: 15px">
+<thead><tr style="color: #9DB0BF; text-align: left"><th style="padding: 8px 16px 8px 0">Lead time</th><th style="padding: 8px 16px">Rain/storm areas ≥20 dBZ<br><span style="font-weight: 400">StormScope / persistence</span></th><th style="padding: 8px 16px">Thunderstorms ≥35 dBZ<br><span style="font-weight: 400">StormScope / persistence</span></th></tr></thead>
+<tbody>
+<tr style="border-top: 1px solid #25303A"><td style="padding: 8px 16px 8px 0">1 hour</td><td style="padding: 8px 16px"><strong>0.88</strong> / 0.65</td><td style="padding: 8px 16px"><strong>0.60</strong> / 0.39</td></tr>
+<tr style="border-top: 1px solid #25303A"><td style="padding: 8px 16px 8px 0">2 hours</td><td style="padding: 8px 16px"><strong>0.62</strong> / 0.40</td><td style="padding: 8px 16px"><strong>0.25</strong> / 0.16</td></tr>
+<tr style="border-top: 1px solid #25303A"><td style="padding: 8px 16px 8px 0">3 hours</td><td style="padding: 8px 16px"><strong>0.40</strong> / 0.27</td><td style="padding: 8px 16px"><strong>0.15</strong> / 0.09</td></tr>
+</tbody></table></div>
+<p style="margin: 0; color: #C3CFD8; max-width: 820px">StormScope beat persistence for rain and storm areas in 12 of 12 events at 1 hour, 11 of 12 at 2 hours and 8 of 12 at 3 hours. Forecast storms gradually weaken: by 3 hours the forecast covers about half the observed storm area, and the strongest cores fade after the first hour. That is why this site stops at 3 hours and limits the strong-core product to the first hour.</p>
+<p style="margin: 0; color: #9DB0BF; font-size: 15px">Setup matters: running on a tight box around Arizona made storms die out within 2 hours. Giving the model about 750 km of surrounding context (to the Gulf of California, Sonora and the Four Corners) fixed most of that, matching a full-CONUS run at a fraction of the cost. Runs use 6 ensemble members of the StormScope Flash model.</p>
+</section>
+
+<section style="background: #1A1510; border: 1px solid #4A3A24; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 22px; color: #F6D7A7">Limitations and appropriate use</h2>
+<span style="color: #E3D2B8">This is an experimental tool. Use it alongside, never instead of, National Weather Service forecasts and warnings.</span>
+<span style="color: #E3D2B8">It forecasts satellite, radar and lightning signals only, not wind, blowing dust, outflow boundaries or rainfall totals.</span>
+<span style="color: #E3D2B8">Satellite views of Arizona come from GOES-East at an angle, which can shift cloud tops slightly west of their true location.</span>
+<span style="color: #E3D2B8">Products may be late or missing if observations or computing are interrupted. Check the data age shown in the viewer.</span>
+</section>
+
+<section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; border-top: 1px solid #25303A; padding-top: 32px">
+<div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 16px">Who we are</h2><span style="color: #B9C6D0; font-size: 15px">Climate program, University of Arizona Cooperative Extension (CALES). Contact: [YOUR EMAIL]</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 16px">Data and credits</h2><span style="color: #B9C6D0; font-size: 15px">GOES-19 ABI and GLM, and MRMS radar, from NOAA via the NOAA Open Data Dissemination program on AWS. Model by NVIDIA Earth-2. Code: <a href="https://github.com/mcrimmins/stormscope-tucson">github.com/mcrimmins/stormscope-tucson</a></span></div>
+</section>
+</div>
+</div>
+
+</body>
+</html>

@@ -17,3 +17,6 @@ e2s-src/
 # Misc
 .env
 cuda-keyring*.deb
+
+# Generated web data (export_web.py)
+web/data/

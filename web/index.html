@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StormScope Tucson – Case studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+<div class="banner">
+  <span><strong>Experimental research product</strong> — not an official forecast. For warnings and forecasts see <a href="https://www.weather.gov/twc/">NWS Tucson</a>.</span>
+  <span class="mono">Case-study mode · past events</span>
+</div>
+
+<header class="top">
+  <div>
+    <h1>StormScope Tucson <span class="muted">· 0–3 h storm nowcast</span></h1>
+    <span class="sub">Southern Arizona · 3 km AI ensemble from GOES, MRMS radar and GLM lightning</span>
+  </div>
+  <div class="controls">
+    <a class="btn" href="about.html">About &amp; methods</a>
+    <label class="field">Case study
+      <select id="caseSelect"></select>
+    </label>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="side" aria-label="Products">
+    <section class="card">
+      <h2 class="eyebrow">Product</h2>
+      <div id="productList" class="products"></div>
+    </section>
+    <section class="card">
+      <h2 class="eyebrow">Compare</h2>
+      <label class="check"><input type="checkbox" id="compareToggle" checked> Show observed radar side by side</label>
+    </section>
+    <section class="card note">
+      <h2 class="eyebrow">This case</h2>
+      <p id="caseNote"></p>
+      <p class="muted small" id="caseMeta"></p>
+    </section>
+    <section class="card note">
+      <h2 class="eyebrow">What this can't show</h2>
+      <p class="small">Wind, outflow and blowing dust · rainfall totals · skill drops quickly after 2–3 hours</p>
+    </section>
+  </nav>
+
+  <main class="main">
+    <section class="card mapcard">
+      <div class="maphead">
+        <div>
+          <div class="title" id="productTitle"></div>
+          <div class="mono muted" id="validLabel"></div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="maps" id="maps">
+        <div class="mapwrap"><div class="maptag" id="leftTag">Forecast</div><div id="mapL" class="map"></div></div>
+        <div class="mapwrap" id="rightWrap"><div class="maptag">Observed radar (MRMS)</div><div id="mapR" class="map"></div></div>
+      </div>
+      <div class="timebar">
+        <button class="btn icon" id="playBtn" aria-label="Play loop">▶</button>
+        <input type="range" id="leadSlider" min="0" max="0" value="0" aria-label="Forecast lead time">
+        <span class="mono" id="leadLabel"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row-between">
+        <h2 class="h2">How did this forecast do?</h2>
+        <span class="muted small">Fractions skill score within 33 km · 1 = perfect · vs. persistence (radar held still)</span>
+      </div>
+      <svg id="skillChart" viewBox="0 0 640 200" role="img" aria-label="Skill by lead time"></svg>
+      <div class="keys small">
+        <span><i class="sw" style="background:#5FA9E6"></i>StormScope ≥20 dBZ</span>
+        <span><i class="sw dash" style="border-color:#5FA9E6"></i>Persistence ≥20 dBZ</span>
+        <span><i class="sw" style="background:#F2A65A"></i>StormScope ≥35 dBZ</span>
+        <span><i class="sw dash" style="border-color:#F2A65A"></i>Persistence ≥35 dBZ</span>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side right">
+    <section class="card">
+      <span class="eyebrow">Point timeline</span>
+      <h2 class="h2" id="pointName">Tucson</h2>
+      <span class="small" id="pointSummary"></span>
+      <svg id="pointChart" viewBox="0 0 320 180" role="img" aria-label="Storm chance over time"></svg>
+      <div class="keys small">
+        <span><i class="sw" style="background:#5FA9E6"></i>Storm chance</span>
+        <span><i class="sw dash" style="border-color:#F2A65A"></i>Lightning chance</span>
+        <span><i class="dot"></i>Storm observed within 10 km</span>
+      </div>
+      <span class="muted small">Click a city on the map.</span>
+    </section>
+    <section class="card">
+      <h2 class="eyebrow">Peak storm chance, this case</h2>
+      <div id="ranked"></div>
+    </section>
+  </aside>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
