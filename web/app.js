@@ -4,7 +4,7 @@ const PRODUCTS = [
   { id: 'new', label: 'New storm development', sub: 'Storm chance where none within 30 km at start', legend: 'prob' },
   { id: 'rain', label: 'Rain chance', sub: '≥20 dBZ within 10 km', legend: 'prob' },
   { id: 'strong', label: 'Strong storm cores', sub: '≥45 dBZ · first hour only', legend: 'prob', maxLead: 60 },
-  { id: 'lightning', label: 'Lightning chance', sub: 'GLM flashes within 10 km', legend: 'prob' },
+  { id: 'lightning', label: 'Lightning chance', sub: 'Experimental · not yet verified', legend: 'prob' },
   { id: 'member', label: 'One possible outcome', sub: 'Ensemble member 1 reflectivity', legend: 'refl' },
 ];
 const PROB_COLORS = ['#17344D', '#1F5784', '#2E7BBE', '#5FA9E6', '#A9D6F7', '#F2A65A'];
@@ -20,7 +20,7 @@ const conf = (L, p) => (p && p.maxLead && L > p.maxLead)
   : CONF.find(c => L <= c.max);
 const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
-const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null, nws: null, showWWA: true, showLSR: true, days: {}, day: null, name: null };
+const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null, nws: null, showWWA: true, showLSR: true, days: {}, day: null, name: null, pendingLead: null };
 const $ = (id) => document.getElementById(id);
 const getJSON = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u); return r.json(); };
 
@@ -104,6 +104,8 @@ function render() {
   document.querySelectorAll('.prod').forEach(b => b.classList.toggle('on', b.dataset.id === S.product));
   document.querySelectorAll('.city').forEach(b => b.classList.toggle('on', b.dataset.city === S.city));
   drawPoint(); drawTiming(); drawEventStrip();
+  const q = new URLSearchParams({ case: S.name, product: S.product, lead: L });
+  history.replaceState(null, '', `${location.pathname}?${q}`);
 }
 
 
@@ -296,7 +298,7 @@ function timing(pt, d) {
 function drawTiming() {
   const d = S.data;
   const rows = Object.entries(d.points).map(([c, p]) => [c, timing(p, d)]).sort((a, b) => b[1].peak - a[1].peak);
-  $('timingTable').innerHTML = `<thead><tr><th>Place</th><th>First chance<br><span>any member</span></th><th>Storm window<br><span>≥50% likely · ≥30% possible</span></th><th>Peak</th><th>Lightning risk ends<br><span>below 30%</span></th>${S.live ? '' : '<th>Observed storm<br><span>first within 10 km</span></th>'}</tr></thead><tbody>` +
+  $('timingTable').innerHTML = `<thead><tr><th>Place</th><th>First chance<br><span>any member</span></th><th>Storm window<br><span>≥50% likely · ≥30% possible</span></th><th>Peak</th><th>Lightning risk ends<br><span>experimental · below 30%</span></th>${S.live ? '' : '<th>Observed storm<br><span>first within 10 km</span></th>'}</tr></thead><tbody>` +
     rows.map(([c, r]) => `<tr class="${c === S.city ? 'sel' : ''}" data-city="${c}"><td><button class="link">${c}</button></td><td class="mono">${r.first}</td><td><span class="tag ${r.cls}">${r.window}</span></td><td class="mono">${Math.round(r.peak * 100)}% <span class="muted">${r.peak > 0 ? r.peakAt : ''}</span></td><td class="mono">${r.lEnd}</td>${S.live ? '' : `<td class="mono">${r.obs}</td>`}</tr>`).join('') + '</tbody>';
   document.querySelectorAll('#timingTable tr[data-city] button').forEach(b => b.onclick = () => { S.city = b.closest('tr').dataset.city; render(); });
 }
@@ -344,6 +346,11 @@ function drawRunPicker() {
   $('runPicker').innerHTML = runs.map(r => `<button class="runbtn${r.name === S.name ? ' on' : ''}" data-name="${r.name}">${r.start_label}</button>`).join('');
   document.querySelectorAll('.runbtn').forEach(b => b.onclick = () => { if (b.dataset.name !== S.name) loadCase(b.dataset.name, true); });
 }
+$('copyLink').onclick = async () => {
+  try { await navigator.clipboard.writeText(location.href); $('copyLink').textContent = 'Link copied'; }
+  catch (e) { prompt('Copy this link:', location.href); }
+  setTimeout(() => { $('copyLink').textContent = 'Copy link to this view'; }, 2000);
+};
 $('caseSelect').onchange = e => {
   const v = e.target.value;
   if (v === '__live') { S.day = null; return loadCase('__live'); }
@@ -368,7 +375,8 @@ async function loadCase(name, keepLead = false, atTime = null) {
   if (mapL.getSource('wwa')) nwsLayers(mapL, true);
   if (mapR.getSource('wwa')) nwsLayers(mapR, false);
   nwsLegend(); drawNwsVerify();
-  if (atTime) { const t0 = Date.parse(d.init_utc + 'Z') / 1000; let best = 0; d.leads.forEach((L, i) => { if (Math.abs(t0 + 60 * L - atTime) < Math.abs(t0 + 60 * d.leads[best] - atTime)) best = i; }); S.lead = best; }
+  if (S.pendingLead != null) { const i = d.leads.indexOf(S.pendingLead); if (i >= 0) { S.lead = i; atTime = null; keepLead = true; } S.pendingLead = null; }
+  else if (atTime) { const t0 = Date.parse(d.init_utc + 'Z') / 1000; let best = 0; d.leads.forEach((L, i) => { if (Math.abs(t0 + 60 * L - atTime) < Math.abs(t0 + 60 * d.leads[best] - atTime)) best = i; }); S.lead = best; }
   else if (!keepLead) S.lead = Math.max(0, d.leads.indexOf(60));
   S.lead = Math.min(S.lead, d.leads.length - 1);
   const sl = $('leadSlider'); sl.max = d.leads.length - 1; sl.value = S.lead;
@@ -411,9 +419,12 @@ window.addEventListener('resize', () => { if (S.data) { drawSkill(); drawPoint()
   const dayKeys = Object.keys(S.days).sort();
   $('caseSelect').innerHTML = (hasLive ? ['<option value="__live">Latest live run</option>'] : [])
     .concat(dayKeys.map(k => `<option value="${k}">${S.days[k].label} — ${(S.days[k].note || '').slice(0, 55)}${S.days[k].runs.length > 1 ? ` (${S.days[k].runs.length} runs)` : ''}</option>`)).join('');
-  const want = new URLSearchParams(location.search).get('case');
+  const qs = new URLSearchParams(location.search), want = qs.get('case');
+  if (qs.get('product') && PRODUCTS.some(p => p.id === qs.get('product'))) S.product = qs.get('product');
+  if (qs.get('lead')) S.pendingLead = +qs.get('lead');
   let startRun = null;
   if (want) { const c = S.cases.find(c => c.name === want); if (c) { S.day = c.day || c.name; startRun = c.name; } }
+  if (want === '__live' && hasLive) { $('caseSelect').value = '__live'; return loadCase('__live'); }
   if (!startRun && hasLive) { $('caseSelect').value = '__live'; return loadCase('__live'); }
   if (!startRun) { S.day = dayKeys.find(k => k.startsWith('2025-08-25')) || dayKeys.find(k => k.startsWith('2026-08-05')) || dayKeys[0]; if (!S.day) return; startRun = S.days[S.day].runs[0].name; }
   $('caseSelect').value = S.day;
