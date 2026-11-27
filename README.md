@@ -112,6 +112,13 @@ within 2 h; padding 250 matched a full-CONUS run.
 | ≥20 dBZ StormScope / persistence | 0.88 / 0.65 | 0.62 / 0.40 | 0.40 / 0.27 |
 | ≥35 dBZ StormScope / persistence | 0.60 / 0.39 | 0.25 / 0.16 | 0.15 / 0.09 |
 
+## Storm-day runs
+
+`uv run python pick_inits.py` reads each storm day's NWS warnings and storm reports and adds
+up to 4 start times (~75 min before each cluster of activity), keeping existing runs. It writes
+`cases_runs.yaml` and prints the overnight `hindcast.py --cases cases_runs.yaml --only ...` command.
+The viewer groups runs by storm day with buttons to switch start time.
+
 ## Case-study website
 
 ```bash

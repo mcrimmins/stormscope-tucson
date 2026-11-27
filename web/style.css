@@ -78,3 +78,6 @@ table.timing tr.sel td{background:#1D2A35}
 .maplibregl-popup-tip{display:none}
 .maplibregl-popup-close-button{color:#9DB0BF}
 table.timing tr.dim td{color:#7F909D}
+.runs{display:flex;flex-wrap:wrap;gap:6px}
+.runbtn{min-height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:#1E2830;color:var(--text);font:600 13px 'JetBrains Mono',monospace;cursor:pointer}
+.runbtn.on{background:#F2A65A;color:#1A1208;border-color:#F2A65A}

@@ -214,8 +214,13 @@ def export_case(case_dir: Path, meta: dict, out: Path):
     (out / f"{name}.json").write_text(json.dumps(data))
     print(f"{name}: {len(leads)} steps exported; lightning exceedance "
           f"{100*np.mean(glm_frac):.2f}% of points (GLM_THRESH={GLM_THRESH})")
+    local = pd.Timestamp(t0 + MST)
     return {"name": name, "init_utc": data["init_utc"], "note": data["note"],
-            "init_mst": pd.Timestamp(t0 + MST).strftime("%b %-d, %Y %-I %p MST")}
+            "init_mst": local.strftime("%b %-d, %Y %-I:%M %p MST"),
+            "start_label": local.strftime("%-I:%M %p").lower(),
+            "day": meta.get("day", local.strftime("%Y-%m-%d")),
+            "day_label": meta.get("day_label", local.strftime("%b %-d, %Y")),
+            "day_note": meta.get("day_note", meta.get("note", ""))}
 
 
 def main():
@@ -223,6 +228,14 @@ def main():
     out = Path("web/data")
     out.mkdir(parents=True, exist_ok=True)
     meta = {c["name"]: c for c in yaml.safe_load(open("cases.yaml"))["cases"]}
+    if Path("cases_runs.yaml").exists():   # storm-day runs from pick_inits.py
+        runs = yaml.safe_load(open("cases_runs.yaml"))["cases"]
+        day_note = {}
+        for c in runs:
+            day_note.setdefault(c["day"], meta.get(c["name"], {}).get("note") or c.get("note", ""))
+        for c in runs:
+            c["day_note"] = day_note[c["day"]]
+            meta[c["name"]] = c
     index = []
     for case_dir in sorted(p.parent for p in exp.glob("*/forecast.zarr")):
         index.append(export_case(case_dir, meta.get(case_dir.name, {}), out))

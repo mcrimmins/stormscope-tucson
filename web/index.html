@@ -22,9 +22,12 @@
   </div>
   <div class="controls">
     <a class="btn" href="about.html">About &amp; methods</a>
-    <label class="field">Forecast run
+    <label class="field">Storm day
       <select id="caseSelect"></select>
     </label>
+    <div class="field" id="runField">Forecast start time (MST)
+      <div id="runPicker" class="runs" role="group" aria-label="Forecast start time"></div>
+    </div>
   </div>
 </header>
 
@@ -74,7 +77,7 @@
         <input type="range" id="leadSlider" min="0" max="0" value="0" aria-label="Forecast lead time">
         <span class="mono" id="leadLabel"></span>
       </div>
-      <div class="strip"><svg id="eventStrip" viewBox="0 0 640 62" role="img" aria-label="Timeline of NWS warnings and storm reports"></svg></div>
+      <div class="strip"><svg id="eventStrip" viewBox="0 0 640 76" role="img" aria-label="Timeline of NWS warnings and storm reports"></svg></div>
     </section>
 
     <section class="card">

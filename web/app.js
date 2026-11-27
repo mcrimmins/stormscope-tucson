@@ -20,7 +20,7 @@ const conf = (L, p) => (p && p.maxLead && L > p.maxLead)
   : CONF.find(c => L <= c.max);
 const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
-const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null, nws: null, showWWA: true, showLSR: true };
+const S = { cases: [], data: null, live: false, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true, fitted: false, liveRun: null, nws: null, showWWA: true, showLSR: true, days: {}, day: null, name: null };
 const $ = (id) => document.getElementById(id);
 const getJSON = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u); return r.json(); };
 
@@ -166,37 +166,48 @@ function nwsLegend() {
   $('nwsLegend').innerHTML = [...w].map(([k, c]) => `<span><i style="border-color:${c};background:${c}22"></i>${k}</span>`).join('') +
     [...l].map(([k, c]) => `<span><b style="background:${c}"></b>${k} report</span>`).join('') || '<span class="muted">None in this period.</span>';
 }
+function dayRuns() { return S.live || !S.data ? [] : (S.days[S.day] || { runs: [] }).runs; }
 function drawEventStrip() {
   const svg = $('eventStrip'), d = S.data, W = Math.max(320, svg.clientWidth || 640);
-  svg.setAttribute('viewBox', `0 0 ${W} 62`);
+  svg.setAttribute('viewBox', `0 0 ${W} 76`);
   const f0 = initEpoch(), f1 = validEpoch(d.leads.length - 1);
-  const win = S.nws && S.nws.window;
-  const t0 = win ? Math.min(win.day_start, f0) : f0, t1 = win ? Math.max(win.day_end, f1) : f1;
-  const X0 = 60, X1 = W - 14, x = t => X0 + (t - t0) / (t1 - t0) * (X1 - X0);
-  let g = `<rect x="${x(f0)}" y="0" width="${x(f1) - x(f0)}" height="44" fill="#5FA9E6" fill-opacity=".09" stroke="#5FA9E6" stroke-opacity=".35"/>`;
-  g += `<text x="${(x(f0) + x(f1)) / 2}" y="58" text-anchor="middle" fill="#7DBCEB" font-size="10">forecast window</text>`;
-  g += `<text x="0" y="16" fill="#9DB0BF" font-size="10">Warnings</text><text x="0" y="38" fill="#9DB0BF" font-size="10">Reports</text>`;
-  g += `<line x1="${X0}" x2="${X1}" y1="12" y2="12" stroke="#25303A"/><line x1="${X0}" x2="${X1}" y1="34" y2="34" stroke="#25303A"/>`;
+  const win = S.nws && S.nws.window, runs = dayRuns();
+  const rs = runs.map(r => { const a = Date.parse(r.init_utc + 'Z') / 1000; return { name: r.name, a, b: a + (f1 - f0), label: r.start_label }; });
+  let t0 = Math.min(f0, ...(win ? [win.day_start] : []), ...rs.map(r => r.a));
+  let t1 = Math.max(f1, ...(win ? [win.day_end] : []), ...rs.map(r => r.b));
+  const X0 = 64, X1 = W - 14, x = t => X0 + (t - t0) / (t1 - t0) * (X1 - X0);
+  let g = `<rect x="${x(f0)}" y="0" width="${x(f1) - x(f0)}" height="58" fill="#5FA9E6" fill-opacity=".09" stroke="#5FA9E6" stroke-opacity=".35"/>`;
+  g += `<text x="0" y="14" fill="#9DB0BF" font-size="10">Warnings</text><text x="0" y="34" fill="#9DB0BF" font-size="10">Reports</text><text x="0" y="53" fill="#9DB0BF" font-size="10">Runs</text>`;
+  g += `<line x1="${X0}" x2="${X1}" y1="10" y2="10" stroke="#25303A"/><line x1="${X0}" x2="${X1}" y1="30" y2="30" stroke="#25303A"/>`;
   for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
-    const lab = mstTime(t).replace(':00 ', '');
-    if ((t / 3600) % 2 === 0 || (t1 - t0) < 8 * 3600) g += `<text x="${x(t)}" y="58" text-anchor="middle" fill="#7F909D" font-size="9.5">${Math.abs(x(t) - (x(f0) + x(f1)) / 2) < 40 ? '' : lab}</text>`;
-    g += `<line x1="${x(t)}" x2="${x(t)}" y1="44" y2="47" stroke="#3A4854"/>`;
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="58" y2="62" stroke="#3A4854"/>`;
+    if ((X1 - X0) / ((t1 - t0) / 3600) > 60 || (t / 3600) % 2 === 0) g += `<text x="${x(t)}" y="73" text-anchor="middle" fill="#7F909D" font-size="9.5">${mstTime(t).replace(':00 ', '')}</text>`;
   }
   if (S.nws) {
     S.nws.warnings.features.forEach(f => { const p = f.properties;
       if (p.key.endsWith('.A') || p.exp <= t0 || p.iss > t1) return;
       const a = x(Math.max(p.iss, t0)), b = x(Math.min(p.exp, t1));
-      g += `<rect x="${a}" y="6" width="${Math.max(2, b - a)}" height="12" rx="2" fill="${p.color}" fill-opacity=".35" stroke="${p.color}"><title>${p.label} ${mstTime(p.iss)}–${mstTime(p.exp)} MST</title></rect>`; });
+      g += `<rect x="${a}" y="4" width="${Math.max(2, b - a)}" height="12" rx="2" fill="${p.color}" fill-opacity=".35" stroke="${p.color}"><title>${p.label} ${mstTime(p.iss)}–${mstTime(p.exp)} MST</title></rect>`; });
     S.nws.lsrs.features.forEach(f => { const p = f.properties;
       if (p.t < t0 || p.t > t1) return;
-      g += `<circle cx="${x(p.t)}" cy="34" r="4.5" fill="${p.color}" stroke="#0E1317"><title>${p.typetext} ${mstTime(p.t)} MST ${p.city || ''}</title></circle>`; });
+      g += `<circle cx="${x(p.t)}" cy="30" r="4.5" fill="${p.color}" stroke="#0E1317"><title>${p.typetext} ${mstTime(p.t)} MST ${p.city || ''}</title></circle>`; });
   }
-  g += `<line x1="${x(validEpoch())}" x2="${x(validEpoch())}" y1="0" y2="46" stroke="#F2A65A" stroke-width="2"/>`;
+  rs.forEach((r, k) => {
+    const on = r.name === S.name;
+    g += `<rect data-run="${r.name}" x="${x(r.a)}" y="${44 + (k % 2) * 6}" width="${x(r.b) - x(r.a)}" height="5" rx="2" fill="${on ? '#F2A65A' : '#5FA9E6'}" fill-opacity="${on ? 1 : .55}" style="cursor:pointer"><title>Forecast started ${r.label} MST (click to open)</title></rect>`;
+  });
+  g += `<line x1="${x(validEpoch())}" x2="${x(validEpoch())}" y1="0" y2="58" stroke="#F2A65A" stroke-width="2"/>`;
   svg.innerHTML = g;
   svg.onclick = e => {
+    const run = e.target.getAttribute && e.target.getAttribute('data-run');
+    if (run && run !== S.name) return loadCase(run, true);
     const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (W / r.width);
     const t = t0 + (px - X0) / (X1 - X0) * (t1 - t0);
-    if (t < f0 - 300 || t > f1 + 300) return;   // map only shows the forecast window
+    if (t < f0 - 300 || t > f1 + 300) {      // outside this run: open the run that covers that time, if any
+      const cover = rs.find(q => t >= q.a && t <= q.b);
+      if (cover && cover.name !== S.name) loadCase(cover.name, false, t);
+      return;
+    }
     let best = 0; d.leads.forEach((L, i) => { if (Math.abs(validEpoch(i) - t) < Math.abs(validEpoch(best) - t)) best = i; });
     stop(); S.lead = best; $('leadSlider').value = best; render();
   };
@@ -327,12 +338,23 @@ $('compareToggle').onchange = e => {
   $('maps').classList.toggle('single', !S.compare);
   setTimeout(() => { mapL.resize(); mapR.resize(); render(); }, 50);
 };
-$('caseSelect').onchange = e => loadCase(e.target.value);
+function drawRunPicker() {
+  const runs = dayRuns();
+  $('runField').style.display = runs.length > 1 ? '' : 'none';
+  $('runPicker').innerHTML = runs.map(r => `<button class="runbtn${r.name === S.name ? ' on' : ''}" data-name="${r.name}">${r.start_label}</button>`).join('');
+  document.querySelectorAll('.runbtn').forEach(b => b.onclick = () => { if (b.dataset.name !== S.name) loadCase(b.dataset.name, true); });
+}
+$('caseSelect').onchange = e => {
+  const v = e.target.value;
+  if (v === '__live') { S.day = null; return loadCase('__live'); }
+  S.day = v; loadCase(S.days[v].runs[0].name);
+};
 $('wwaToggle').onchange = e => { S.showWWA = e.target.checked; render(); };
 $('lsrToggle').onchange = e => { S.showLSR = e.target.checked; render(); };
 
-async function loadCase(name, keepLead = false) {
+async function loadCase(name, keepLead = false, atTime = null) {
   stop();
+  S.name = name;
   if (name === '__live') {
     const idx = await getJSON('data/live/index.json');
     S.liveRun = idx.runs[0];
@@ -346,13 +368,15 @@ async function loadCase(name, keepLead = false) {
   if (mapL.getSource('wwa')) nwsLayers(mapL, true);
   if (mapR.getSource('wwa')) nwsLayers(mapR, false);
   nwsLegend(); drawNwsVerify();
-  if (!keepLead) S.lead = Math.max(0, d.leads.indexOf(60));
+  if (atTime) { const t0 = Date.parse(d.init_utc + 'Z') / 1000; let best = 0; d.leads.forEach((L, i) => { if (Math.abs(t0 + 60 * L - atTime) < Math.abs(t0 + 60 * d.leads[best] - atTime)) best = i; }); S.lead = best; }
+  else if (!keepLead) S.lead = Math.max(0, d.leads.indexOf(60));
   S.lead = Math.min(S.lead, d.leads.length - 1);
   const sl = $('leadSlider'); sl.max = d.leads.length - 1; sl.value = S.lead;
   $('modeTag').textContent = S.live ? 'Live · updated every 30 min' : 'Case-study mode · past event';
   $('caseHead').textContent = S.live ? 'This run' : 'This case';
-  $('caseNote').textContent = S.live ? 'Latest experimental forecast run.' : (d.note || '');
   const c = S.cases.find(c => c.name === name);
+  $('caseNote').textContent = S.live ? 'Latest experimental forecast run.' : ((c && c.day_note) || d.note || '');
+  drawRunPicker();
   $('caseMeta').textContent = S.live
     ? `Start ${d.init_utc.replace('T', ' ')} UTC · finished ${d.made_utc.replace('T', ' ')} UTC · ${d.members} members`
     : `Start ${c ? c.init_mst : ''} (${d.init_utc.replace('T', ' ')} UTC) · ${d.members} members`;
@@ -376,14 +400,22 @@ window.addEventListener('resize', () => { if (S.data) { drawSkill(); drawPoint()
 (async function init() {
   const idx = await getJSON('data/cases.json').catch(() => ({ cases: [] }));
   S.cases = idx.cases;
+  S.days = {};
+  idx.cases.forEach(c => {
+    const k = c.day || c.name;
+    (S.days[k] = S.days[k] || { label: c.day_label || c.init_mst, note: c.day_note || c.note, runs: [] }).runs.push(c);
+  });
+  Object.values(S.days).forEach(d => d.runs.sort((a, b) => a.init_utc.localeCompare(b.init_utc)));
   let hasLive = false;
   try { const li = await getJSON('data/live/index.json'); hasLive = li.runs && li.runs.length > 0; } catch (e) { /* no live runs yet */ }
-  const opts = (hasLive ? ['<option value="__live">Latest live run</option>'] : [])
-    .concat(idx.cases.map(c => `<option value="${c.name}">${c.init_mst} — ${c.note.slice(0, 60)}</option>`));
-  $('caseSelect').innerHTML = opts.join('');
+  const dayKeys = Object.keys(S.days).sort();
+  $('caseSelect').innerHTML = (hasLive ? ['<option value="__live">Latest live run</option>'] : [])
+    .concat(dayKeys.map(k => `<option value="${k}">${S.days[k].label} — ${(S.days[k].note || '').slice(0, 55)}${S.days[k].runs.length > 1 ? ` (${S.days[k].runs.length} runs)` : ''}</option>`)).join('');
   const want = new URLSearchParams(location.search).get('case');
-  const start = want || (hasLive ? '__live' : ((idx.cases.find(c => c.name.startsWith('2026-08-05')) || idx.cases[0] || {}).name));
-  if (!start) return;
-  $('caseSelect').value = start;
-  loadCase(start);
+  let startRun = null;
+  if (want) { const c = S.cases.find(c => c.name === want); if (c) { S.day = c.day || c.name; startRun = c.name; } }
+  if (!startRun && hasLive) { $('caseSelect').value = '__live'; return loadCase('__live'); }
+  if (!startRun) { S.day = dayKeys.find(k => k.startsWith('2025-08-25')) || dayKeys.find(k => k.startsWith('2026-08-05')) || dayKeys[0]; if (!S.day) return; startRun = S.days[S.day].runs[0].name; }
+  $('caseSelect').value = S.day;
+  loadCase(startRun);
 })();
