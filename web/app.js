@@ -12,16 +12,24 @@ const REFL_COLORS = ['#04E9E7', '#019FF4', '#0300F4', '#02FD02', '#01C501', '#00
 const S = { cases: [], data: null, product: 'storm', lead: 0, city: 'Tucson', playing: false, timer: null, compare: true };
 const $ = (id) => document.getElementById(id);
 
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
 const baseStyle = {
   version: 8,
   sources: {
-    base: { type: 'raster', tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO',
-      tiles: ['a', 'b', 'c'].map(s => `https://${s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png`) },
-    labels: { type: 'raster', tileSize: 256,
-      tiles: ['a', 'b', 'c'].map(s => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png`) },
+    base: { type: 'raster', tileSize: 256, maxzoom: 16,
+      attribution: 'Basemap © Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS',
+      tiles: [`${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`] },
+    hillshade: { type: 'raster', tileSize: 256, maxzoom: 16,
+      tiles: [`${ESRI}/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}`] },
+    labels: { type: 'raster', tileSize: 256, maxzoom: 16,
+      tiles: [`${ESRI}/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`] },
   },
-  layers: [{ id: 'base', type: 'raster', source: 'base' }],
+  layers: [
+    { id: 'base', type: 'raster', source: 'base' },
+    { id: 'hillshade', type: 'raster', source: 'hillshade', paint: { 'raster-opacity': 0.55 } },
+  ],
 };
+const MINOR = new Set(['Marana', 'Oro Valley', 'Vail', 'Benson', 'Sells']);
 
 function makeMap(el) {
   const m = new maplibregl.Map({ container: el, style: baseStyle, center: [-111.0, 32.4], zoom: 5.6,
@@ -55,7 +63,9 @@ function drawCities() {
     const el = document.createElement('button');
     el.className = 'city' + (name === S.city ? ' on' : '');
     el.setAttribute('aria-label', `Show timeline for ${name}`);
-    el.innerHTML = `<i></i>${name}`;
+    el.innerHTML = MINOR.has(name) ? '<i></i>' : `<i></i>${name}`;
+    el.title = name;
+    el.dataset.city = name;
     el.onclick = () => { S.city = name; render(); };
     cityMarkers.push(new maplibregl.Marker({ element: el, anchor: 'left', offset: [-6, 0] }).setLngLat(ll).addTo(mapL));
   }
@@ -83,7 +93,7 @@ function render() {
   mapL.loaded() ? go() : mapL.once('load', go);
   if (S.compare && !mapR.loaded()) mapR.once('load', go);
   document.querySelectorAll('.prod').forEach(b => b.classList.toggle('on', b.dataset.id === S.product));
-  document.querySelectorAll('.city').forEach(b => b.classList.toggle('on', b.textContent === S.city));
+  document.querySelectorAll('.city').forEach(b => b.classList.toggle('on', b.dataset.city === S.city));
   drawPoint(); drawRanked();
 }
 
@@ -129,7 +139,9 @@ function drawRanked() {
 
 function drawSkill() {
   const d = S.data, sc = d.scores, n = d.leads.length;
-  const X0 = 40, X1 = 628, Y0 = 170, H = 158;
+  const svg = $('skillChart'), W = Math.max(320, svg.clientWidth || 640);
+  svg.setAttribute('viewBox', `0 0 ${W} 200`);
+  const X0 = 40, X1 = W - 14, Y0 = 170, H = 158;
   const x = i => X0 + (i / Math.max(1, n - 1)) * (X1 - X0), y = v => Y0 - Math.max(0, v) * H;
   let g = '';
   [0, .25, .5, .75, 1].forEach(v => g += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#25303A' : '#3A4854'}"/><text x="${X0 - 6}" y="${y(v) + 3}" text-anchor="end" fill="#9DB0BF" font-size="10">${v}</text>`);
@@ -168,6 +180,11 @@ async function loadCase(name) {
   $('caseMeta').textContent = `Start ${c ? c.init_mst : ''} (${S.data.init_utc.replace('T', ' ')} UTC) · ${S.data.members} members`;
   preload([...S.data.products[S.product], ...S.data.products.obs]);
   drawCities(); drawSkill(); render();
+  if (!S.fitted) {
+    const b = S.data.bounds, fit = () => mapL.fitBounds([b[3], b[1]], { padding: 10, duration: 0 });
+    mapL.loaded() ? fit() : mapL.once('load', fit);
+    S.fitted = true;
+  }
 }
 
 (async function init() {
@@ -178,3 +195,5 @@ async function loadCase(name) {
   $('caseSelect').value = start.name;
   loadCase(start.name);
 })();
+
+window.addEventListener('resize', () => { if (S.data) drawSkill(); });
