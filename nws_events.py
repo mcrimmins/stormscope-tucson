@@ -193,7 +193,11 @@ def verify(warn_fc, lsr_fc, storm_grids, leads, t_init: datetime, lats, lons):
     wrows, lrows = [], []
     for f in warn_fc["features"]:
         p = f["properties"]
-        if p["key"].endswith(".A") or not (t_init.timestamp() < p["iss"] <= t_end):
+        if p["key"].endswith(".A"):
+            continue
+        if not (t_init.timestamp() < p["iss"] <= t_end):
+            wrows.append({"label": p["label"], "key": p["key"], "wfo": p["wfo"], "issued": p["issued"],
+                          "in_window": False, "before": p["iss"] <= t_init.timestamp()})
             continue
         m = _poly_mask(shape(f["geometry"]), lats, lons)
         if not m.any():
@@ -206,32 +210,50 @@ def verify(warn_fc, lsr_fc, storm_grids, leads, t_init: datetime, lats, lons):
         ge50 = np.where(inside.max(axis=1) >= 0.5)[0]
         first50 = int(leads[ge50[0]]) if len(ge50) else None
         wrows.append({"label": p["label"], "key": p["key"], "wfo": p["wfo"], "issued": p["issued"],
-                      "lead_at_issue": int(leads[i]), "p_at_issue": round(at_issue, 2),
+                      "in_window": True, "lead_at_issue": int(leads[i]), "p_at_issue": round(at_issue, 2),
                       "p_during": round(during, 2), "first_ge50_lead": first50,
                       "signal_before_issue_min": (None if first50 is None
                                                   else int(round((p["iss"] - (t_init.timestamp() + 60 * first50)) / 60)))})
     for f in lsr_fc["features"]:
         p = f["properties"]
         if not (t_init.timestamp() < p["t"] <= t_end + 600):
+            lrows.append({"valid": p["valid"], "group": p["group"], "typetext": p["typetext"],
+                          "city": p["city"], "in_window": False, "before": p["t"] <= t_init.timestamp()})
             continue
         lon, lat = f["geometry"]["coordinates"]
         yi, xi = int(np.abs(lats - lat).argmin()), int(np.abs(lons - lon).argmin())
         near = np.abs(lead_t - p["t"]) <= 20 * 60       # +/- 20 minutes
         vals = np.nan_to_num(storm_grids[near, yi, xi]) if near.any() else np.array([0.0])
         lrows.append({"valid": p["valid"], "group": p["group"], "typetext": p["typetext"],
-                      "city": p["city"], "p_near": round(float(vals.max()), 2),
+                      "city": p["city"], "in_window": True, "p_near": round(float(vals.max()), 2),
                       "lead": int(leads[int(np.abs(lead_t - p['t']).argmin())])})
+    win_w = [r for r in wrows if r["in_window"]]
+    win_l = [r for r in lrows if r["in_window"]]
     summ = {
-        "warnings": len(wrows), "warnings_ge50": sum(r["p_during"] >= 0.5 for r in wrows),
-        "reports": len(lrows), "reports_ge50": sum(r["p_near"] >= 0.5 for r in lrows),
+        "warnings": len(win_w), "warnings_ge50": sum(r["p_during"] >= 0.5 for r in win_w),
+        "reports": len(win_l), "reports_ge50": sum(r["p_near"] >= 0.5 for r in win_l),
+        "warnings_day": len(wrows), "reports_day": len(lrows),
     }
     return {"summary": summ, "warnings": wrows, "reports": lrows}
 
 
+def storm_day(t_init: datetime, t_end: datetime):
+    """Noon to midnight MST of the local day the forecast starts on, widened to cover
+    2 h before the start and the full forecast if they fall outside it."""
+    mst = timedelta(hours=-7)
+    local = (t_init + mst).date()
+    noon = datetime(local.year, local.month, local.day, 12, tzinfo=timezone.utc) - mst
+    midnight = noon + timedelta(hours=12)
+    return min(noon, t_init - timedelta(hours=2)), max(midnight, t_end)
+
+
 def case_events(name, t_init: datetime, hours, region, storm_grids, leads, lats, lons):
-    """Fetch + verify for one case. Window: 6 h before start (for watches) to the forecast end."""
+    """Fetch the whole storm day's warnings and reports; verify those inside the forecast window."""
     t_end = t_init + timedelta(hours=hours) + timedelta(minutes=10)
-    warn = fetch_warnings(name, t_init - timedelta(hours=6), t_end, region)
-    lsr = fetch_lsrs(name, t_init - timedelta(hours=2), t_end, region)
+    d0, d1 = storm_day(t_init, t_end)
+    warn = fetch_warnings(f"{name}_day", d0 - timedelta(hours=6), d1, region)
+    lsr = fetch_lsrs(f"{name}_day", d0, d1, region)
     ver = verify(warn, lsr, storm_grids, leads, t_init, lats, lons)
-    return {"warnings": warn, "lsrs": lsr, "verify": ver}
+    return {"warnings": warn, "lsrs": lsr, "verify": ver,
+            "window": {"day_start": int(d0.timestamp()), "day_end": int(d1.timestamp()),
+                       "fcst_start": int(t_init.timestamp()), "fcst_end": int(t_end.timestamp())}}

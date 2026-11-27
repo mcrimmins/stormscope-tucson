@@ -77,3 +77,4 @@ table.timing tr.sel td{background:#1D2A35}
 .maplibregl-popup-content{background:#161D23;color:#E6EDF2;border:1px solid #33414D;font:13px Inter,sans-serif;max-width:280px}
 .maplibregl-popup-tip{display:none}
 .maplibregl-popup-close-button{color:#9DB0BF}
+table.timing tr.dim td{color:#7F909D}

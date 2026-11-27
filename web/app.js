@@ -168,25 +168,35 @@ function nwsLegend() {
 }
 function drawEventStrip() {
   const svg = $('eventStrip'), d = S.data, W = Math.max(320, svg.clientWidth || 640);
-  svg.setAttribute('viewBox', `0 0 ${W} 46`);
-  const t0 = initEpoch(), t1 = validEpoch(d.leads.length - 1);
+  svg.setAttribute('viewBox', `0 0 ${W} 62`);
+  const f0 = initEpoch(), f1 = validEpoch(d.leads.length - 1);
+  const win = S.nws && S.nws.window;
+  const t0 = win ? Math.min(win.day_start, f0) : f0, t1 = win ? Math.max(win.day_end, f1) : f1;
   const X0 = 60, X1 = W - 14, x = t => X0 + (t - t0) / (t1 - t0) * (X1 - X0);
-  let g = `<text x="0" y="16" fill="#9DB0BF" font-size="10">Warnings</text><text x="0" y="38" fill="#9DB0BF" font-size="10">Reports</text>`;
+  let g = `<rect x="${x(f0)}" y="0" width="${x(f1) - x(f0)}" height="44" fill="#5FA9E6" fill-opacity=".09" stroke="#5FA9E6" stroke-opacity=".35"/>`;
+  g += `<text x="${(x(f0) + x(f1)) / 2}" y="58" text-anchor="middle" fill="#7DBCEB" font-size="10">forecast window</text>`;
+  g += `<text x="0" y="16" fill="#9DB0BF" font-size="10">Warnings</text><text x="0" y="38" fill="#9DB0BF" font-size="10">Reports</text>`;
   g += `<line x1="${X0}" x2="${X1}" y1="12" y2="12" stroke="#25303A"/><line x1="${X0}" x2="${X1}" y1="34" y2="34" stroke="#25303A"/>`;
+  for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
+    const lab = mstTime(t).replace(':00 ', '');
+    if ((t / 3600) % 2 === 0 || (t1 - t0) < 8 * 3600) g += `<text x="${x(t)}" y="58" text-anchor="middle" fill="#7F909D" font-size="9.5">${Math.abs(x(t) - (x(f0) + x(f1)) / 2) < 40 ? '' : lab}</text>`;
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="44" y2="47" stroke="#3A4854"/>`;
+  }
   if (S.nws) {
     S.nws.warnings.features.forEach(f => { const p = f.properties;
       if (p.key.endsWith('.A') || p.exp <= t0 || p.iss > t1) return;
       const a = x(Math.max(p.iss, t0)), b = x(Math.min(p.exp, t1));
-      g += `<rect x="${a}" y="6" width="${Math.max(2, b - a)}" height="12" rx="2" fill="${p.color}" fill-opacity=".35" stroke="${p.color}"><title>${p.label} ${mstTime(p.iss)}–${mstTime(p.exp)}</title></rect>`; });
+      g += `<rect x="${a}" y="6" width="${Math.max(2, b - a)}" height="12" rx="2" fill="${p.color}" fill-opacity=".35" stroke="${p.color}"><title>${p.label} ${mstTime(p.iss)}–${mstTime(p.exp)} MST</title></rect>`; });
     S.nws.lsrs.features.forEach(f => { const p = f.properties;
       if (p.t < t0 || p.t > t1) return;
-      g += `<circle cx="${x(p.t)}" cy="34" r="4.5" fill="${p.color}" stroke="#0E1317"><title>${p.typetext} ${mstTime(p.t)} ${p.city || ''}</title></circle>`; });
+      g += `<circle cx="${x(p.t)}" cy="34" r="4.5" fill="${p.color}" stroke="#0E1317"><title>${p.typetext} ${mstTime(p.t)} MST ${p.city || ''}</title></circle>`; });
   }
-  g += `<line x1="${x(validEpoch())}" x2="${x(validEpoch())}" y1="2" y2="44" stroke="#F2A65A" stroke-width="2"/>`;
+  g += `<line x1="${x(validEpoch())}" x2="${x(validEpoch())}" y1="0" y2="46" stroke="#F2A65A" stroke-width="2"/>`;
   svg.innerHTML = g;
   svg.onclick = e => {
     const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (W / r.width);
     const t = t0 + (px - X0) / (X1 - X0) * (t1 - t0);
+    if (t < f0 - 300 || t > f1 + 300) return;   // map only shows the forecast window
     let best = 0; d.leads.forEach((L, i) => { if (Math.abs(validEpoch(i) - t) < Math.abs(validEpoch(best) - t)) best = i; });
     stop(); S.lead = best; $('leadSlider').value = best; render();
   };
@@ -197,12 +207,17 @@ function drawNwsVerify() {
   if (!v) return;
   const pct = x => `${Math.round(x * 100)}%`, sm = v.summary;
   const cls = x => x >= 0.5 ? 'likely' : x >= 0.3 ? 'possible' : 'unlikely';
-  $('nwsSummary').innerHTML = `<strong>${sm.warnings_ge50} of ${sm.warnings}</strong> warnings/advisories issued during this forecast had a ≥50% forecast storm chance inside the polygon while in effect. ` +
-    `<strong>${sm.reports_ge50} of ${sm.reports}</strong> storm reports had ≥50% forecast storm chance within 10 km (±20 min).`;
-  $('warnTable').innerHTML = v.warnings.length ? `<thead><tr><th>Warning / advisory</th><th>Issued</th><th>Forecast chance<br><span>at issue time</span></th><th>Forecast chance<br><span>peak while in effect</span></th><th>Forecast signal<br><span>first ≥50% in polygon</span></th></tr></thead><tbody>` +
-    v.warnings.map(r => `<tr><td>${r.label} <span class="muted">(${r.wfo})</span></td><td class="mono">${mstTime(Date.parse(r.issued) / 1000)} <span class="muted">+${Math.floor(r.lead_at_issue / 60)}h${String(r.lead_at_issue % 60).padStart(2, '0')}</span></td><td><span class="tag ${cls(r.p_at_issue)}">${pct(r.p_at_issue)}</span></td><td><span class="tag ${cls(r.p_during)}">${pct(r.p_during)}</span></td><td class="mono">${r.first_ge50_lead == null ? '—' : (r.signal_before_issue_min > 0 ? `${r.signal_before_issue_min} min before issue` : r.signal_before_issue_min === 0 ? 'at issue' : `${-r.signal_before_issue_min} min after issue`)}</td></tr>`).join('') + '</tbody>' : '';
-  $('lsrTable').innerHTML = v.reports.length ? `<thead><tr><th>Storm report</th><th>Time</th><th>Place</th><th>Forecast chance<br><span>within 10 km, ±20 min</span></th></tr></thead><tbody>` +
-    v.reports.map(r => `<tr><td>${r.typetext}</td><td class="mono">${mstTime(Date.parse(r.valid) / 1000)}</td><td>${r.city || ''}</td><td><span class="tag ${cls(r.p_near)}">${pct(r.p_near)}</span></td></tr>`).join('') + '</tbody>' : '';
+  const outside = r => `<span class="tag unlikely">${r.before ? 'before forecast' : 'after forecast'}</span>`;
+  $('nwsSummary').innerHTML = `Storm day: ${sm.warnings_day} warnings/advisories and ${sm.reports_day} storm reports (noon–midnight MST). ` +
+    (sm.warnings || sm.reports
+      ? `Inside the forecast window: <strong>${sm.warnings_ge50} of ${sm.warnings}</strong> warnings had a ≥50% forecast storm chance in the polygon while in effect; <strong>${sm.reports_ge50} of ${sm.reports}</strong> reports had ≥50% within 10 km (±20 min).`
+      : 'None fell inside this forecast window.');
+  $('warnTable').innerHTML = v.warnings.length ? `<thead><tr><th>Warning / advisory</th><th>Issued (MST)</th><th>Forecast chance<br><span>at issue time</span></th><th>Forecast chance<br><span>peak while in effect</span></th><th>Forecast signal<br><span>first ≥50% in polygon</span></th></tr></thead><tbody>` +
+    v.warnings.map(r => r.in_window
+      ? `<tr><td>${r.label} <span class="muted">(${r.wfo})</span></td><td class="mono">${mstTime(Date.parse(r.issued) / 1000)} <span class="muted">+${Math.floor(r.lead_at_issue / 60)}h${String(r.lead_at_issue % 60).padStart(2, '0')}</span></td><td><span class="tag ${cls(r.p_at_issue)}">${pct(r.p_at_issue)}</span></td><td><span class="tag ${cls(r.p_during)}">${pct(r.p_during)}</span></td><td class="mono">${r.first_ge50_lead == null ? '—' : (r.signal_before_issue_min > 0 ? `${r.signal_before_issue_min} min before issue` : r.signal_before_issue_min === 0 ? 'at issue' : `${-r.signal_before_issue_min} min after issue`)}</td></tr>`
+      : `<tr class="dim"><td>${r.label} <span class="muted">(${r.wfo})</span></td><td class="mono">${mstTime(Date.parse(r.issued) / 1000)}</td><td colspan="3">${outside(r)}</td></tr>`).join('') + '</tbody>' : '';
+  $('lsrTable').innerHTML = v.reports.length ? `<thead><tr><th>Storm report</th><th>Time (MST)</th><th>Place</th><th>Forecast chance<br><span>within 10 km, ±20 min</span></th></tr></thead><tbody>` +
+    v.reports.map(r => `<tr class="${r.in_window ? '' : 'dim'}"><td>${r.typetext}</td><td class="mono">${mstTime(Date.parse(r.valid) / 1000)}</td><td>${r.city || ''}</td><td>${r.in_window ? `<span class="tag ${cls(r.p_near)}">${pct(r.p_near)}</span>` : outside(r)}</td></tr>`).join('') + '</tbody>' : '';
 }
 
 // ---------- charts ----------

@@ -205,8 +205,8 @@ def export_case(case_dir: Path, meta: dict, out: Path):
         (out / f"{name}_nws.json").write_text(json.dumps(ev))
         data["nws"] = f"data/{name}_nws.json"
         v = ev["verify"]["summary"]
-        print(f"    NWS: {len(ev['warnings']['features'])} warnings/advisories, "
-              f"{len(ev['lsrs']['features'])} reports; in window: {v['warnings_ge50']}/{v['warnings']} "
+        print(f"    NWS storm day: {v['warnings_day']} warnings/advisories, {v['reports_day']} reports; "
+              f"in forecast window: {v['warnings_ge50']}/{v['warnings']} "
               f"warnings and {v['reports_ge50']}/{v['reports']} reports had >=50% forecast storm chance")
     except Exception as e:  # network or parsing problem: export the case without NWS layers
         print(f"    NWS events skipped: {e}")
